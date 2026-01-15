@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         [ChatGPT Universal Exporter] + Theme Optimizer [20260115] v1.1.0
+// @name         [ChatGPT Universal Exporter] + UI Optimizer [20260116] v1.0.0
 // @namespace    https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus
-// @version      [20260115] v1.1.0
-// @update-log   [20260115] v1.1.0 暗色弹窗改为中性灰系并淡化遮罩/底色，去蓝化统一卡片/输入/按钮的边框与文字色。
-// @description  将浮动导出按钮压缩为仅图标、跟随主题且半透明的样式，不改动导出逻辑。
+// @version      [20260116] v1.0.0
+// @update-log   [20260116] v1.0.0 导出 UI 语言随浏览器主语言自动切换中英文；弹窗与按钮文案统一本地化，主题样式保持轻量一致。
+// @description  优化导出按钮与弹窗 UI：紧凑按钮、主题联动、自动中英文界面；不改动导出逻辑。
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
 // @grant        none
@@ -13,16 +13,17 @@
 // ==/UserScript==
 
 /* ============================================================
-   Theme Optimizer 说明
+   UI Optimizer 说明
    ------------------------------------------------------------
-   • 浮窗按钮：仅保留 📥 图标的小尺寸块，保留阴影与圆角。
-   • 主题联动：随系统亮/暗切换，按钮与弹窗同步调色，确保清晰对比。
-   • 弹窗风格：浅色通透、深色中性灰；输入、卡片、按钮统一边框与文案色。
-   • 行为保持：不改导出流程，仅做 UI 微调和文案优化。
-   • 持续修复：监听 DOM 变化，按钮或弹窗被重建时自动补回样式。
+   • 语言自适应：以浏览器主语言为准，中文显示中文，否则自动切换英文。
+   • 浮窗按钮：保留 📥 图标的小尺寸块，延续阴影与圆角手感。
+   • 主题联动：随系统亮/暗切换，按钮与弹窗同步调色，确保对比清晰。
+   • 弹窗细节：卡片/输入/按钮统一边框与文案色，提示块色彩更克制。
+   • 行为保持：不改导出流程，仅做 UI 微调与文案本地化。
+   • 自动修复：监听 DOM 变化，按钮或弹窗重建时补回样式与文案。
    ============================================================ */
 
-(function () {
+   (function () {
     'use strict';
 
     // Prevent double-apply if the helper is injected twice
@@ -33,7 +34,144 @@
     const DIALOG_OVERLAY_ID = 'export-dialog-overlay';
     const DIALOG_ID = 'export-dialog';
     const ICON_LABEL = '📥';
+    const UI_TEXT = {
+        en: { exportLabel: 'Export Conversations' },
+        zh: { exportLabel: '导出对话' }
+    };
     const darkMatcher = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const getPrimaryLanguage = () => {
+        if (typeof navigator !== 'undefined') {
+            if (Array.isArray(navigator.languages)) {
+                const primary = navigator.languages.find((lang) => typeof lang === 'string' && lang.trim());
+                if (primary) return primary;
+            }
+            if (typeof navigator.language === 'string' && navigator.language.trim()) return navigator.language;
+            if (typeof navigator.userLanguage === 'string' && navigator.userLanguage.trim()) return navigator.userLanguage;
+        }
+        const docLang = document.documentElement?.lang;
+        if (typeof docLang === 'string' && docLang.trim()) return docLang;
+        return '';
+    };
+    const isChineseLocale = () => {
+        const primary = getPrimaryLanguage();
+        return typeof primary === 'string' && primary.toLowerCase().startsWith('zh');
+    };
+    const activeLocale = isChineseLocale() ? 'zh' : 'en';
+    const uiText = UI_TEXT[activeLocale];
+    const LOCALE_RULES = {
+        en: {
+            exact: {
+                '导出对话': 'Export Conversations',
+                '选择要导出的空间': 'Choose what to export',
+                '个人空间': 'Personal space',
+                '导出您个人账户下的所有对话。': 'Export all conversations under your personal account.',
+                '团队空间': 'Team space',
+                '导出团队空间下的对话，将自动检测ID。': 'Export conversations in a team workspace; ID will be detected automatically.',
+                '取消': 'Cancel',
+                '导出团队空间': 'Export Team Workspace',
+                '🔎 检测到多个 Workspace，请选择一个:': '🔎 Multiple workspaces detected. Please choose one:',
+                '✅ 已自动检测到 Workspace ID:': '✅ Workspace ID detected automatically:',
+                '⚠️ 未能自动检测到 Workspace ID。': '⚠️ Unable to detect a Workspace ID.',
+                '请尝试刷新页面或打开一个团队对话，或在下方手动输入。': 'Try refreshing the page or opening a team conversation, or enter it manually below.',
+                '手动输入 Team Workspace ID:': 'Enter Team Workspace ID manually:',
+                '粘贴您的 Workspace ID (ws-...)': 'Paste your Workspace ID (ws-...)',
+                '返回': 'Back',
+                '开始导出 (ZIP)': 'Start Export (ZIP)',
+                '📂 获取项目外对话…': '📂 Fetching conversations outside projects…',
+                '🔍 获取项目列表…': '🔍 Fetching project list…',
+                '📦 生成 ZIP 文件…': '📦 Creating ZIP file…',
+                '✅ 完成': '✅ Done',
+                '✅ 导出完成！': '✅ Export complete!',
+                '无法获取 Access Token。请刷新页面或打开任意一个对话后再试。': 'Unable to get Access Token. Please refresh the page or open any conversation and try again.',
+                '请选择或输入一个有效的 Team Workspace ID！': 'Please choose or enter a valid Team Workspace ID!',
+                '⚠️ 错误': '⚠️ Error'
+            },
+            patterns: [
+                { re: /^📥 根目录 \((\d+)\/(\d+)\)$/, replace: '📥 Root ($1/$2)' },
+                { re: /^📂 项目: (.+)$/, replace: '📂 Project: $1' },
+                { re: /^导出失败:\s*(.+)。详情请查看控制台（F12 -> Console）。$/, replace: 'Export failed: $1. Please check the console (F12 -> Console) for details.' }
+            ]
+        },
+        zh: {
+            exact: {
+                'Export Conversations': '导出对话',
+                'Choose what to export': '选择要导出的空间',
+                'Personal space': '个人空间',
+                'Export all conversations under your personal account.': '导出您个人账户下的所有对话。',
+                'Team space': '团队空间',
+                'Export conversations in a team workspace; ID will be detected automatically.': '导出团队空间下的对话，将自动检测ID。',
+                'Cancel': '取消',
+                'Export Team Workspace': '导出团队空间',
+                '🔎 Multiple workspaces detected. Please choose one:': '🔎 检测到多个 Workspace，请选择一个:',
+                '✅ Workspace ID detected automatically:': '✅ 已自动检测到 Workspace ID:',
+                '⚠️ Unable to detect a Workspace ID.': '⚠️ 未能自动检测到 Workspace ID。',
+                'Try refreshing the page or opening a team conversation, or enter it manually below.': '请尝试刷新页面或打开一个团队对话，或在下方手动输入。',
+                'Enter Team Workspace ID manually:': '手动输入 Team Workspace ID:',
+                'Paste your Workspace ID (ws-...)': '粘贴您的 Workspace ID (ws-...)',
+                'Back': '返回',
+                'Start Export (ZIP)': '开始导出 (ZIP)',
+                '📂 Fetching conversations outside projects…': '📂 获取项目外对话…',
+                '🔍 Fetching project list…': '🔍 获取项目列表…',
+                '📦 Creating ZIP file…': '📦 生成 ZIP 文件…',
+                '✅ Done': '✅ 完成',
+                '✅ Export complete!': '✅ 导出完成！',
+                'Unable to get Access Token. Please refresh the page or open any conversation and try again.': '无法获取 Access Token。请刷新页面或打开任意一个对话后再试。',
+                'Please choose or enter a valid Team Workspace ID!': '请选择或输入一个有效的 Team Workspace ID！',
+                '⚠️ Error': '⚠️ 错误'
+            },
+            patterns: [
+                { re: /^📥 Root \((\d+)\/(\d+)\)$/, replace: '📥 根目录 ($1/$2)' },
+                { re: /^📂 Project: (.+)$/, replace: '📂 项目: $1' },
+                { re: /^Export failed:\s*(.+)\. Please check the console \(F12 -> Console\) for details\.$/, replace: '导出失败: $1。详情请查看控制台（F12 -> Console）。' }
+            ]
+        }
+    };
+    const translateText = (value) => {
+        if (typeof value !== 'string') return value;
+        const rules = LOCALE_RULES[activeLocale];
+        if (!rules) return value;
+        const trimmed = value.trim();
+        if (!trimmed) return value;
+        const exact = rules.exact[trimmed];
+        if (exact) return value.replace(trimmed, exact);
+        for (const { re, replace } of rules.patterns) {
+            if (re.test(trimmed)) {
+                const updated = trimmed.replace(re, replace);
+                return value.replace(trimmed, updated);
+            }
+        }
+        return value;
+    };
+    const localizeDialogText = (dialog) => {
+        if (!dialog || !window.NodeFilter) return;
+        const walker = document.createTreeWalker(dialog, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach((node) => {
+            const updated = translateText(node.nodeValue);
+            if (updated !== node.nodeValue) node.nodeValue = updated;
+        });
+        const manualInput = dialog.querySelector('#team-id-input');
+        if (manualInput?.placeholder) {
+            const placeholder = translateText(manualInput.placeholder);
+            if (placeholder !== manualInput.placeholder) manualInput.placeholder = placeholder;
+        }
+    };
+    const localizeButtonText = (btn) => {
+        if (!btn) return;
+        const updated = translateText(btn.textContent || '');
+        if (updated !== btn.textContent) btn.textContent = updated;
+    };
+    const setupAlertLocalization = () => {
+        if (window.__cgueAlertLocalized) return;
+        window.__cgueAlertLocalized = true;
+        const originalAlert = window.alert;
+        window.alert = function (message, ...rest) {
+            const localized = translateText(message);
+            return originalAlert.call(this, localized, ...rest);
+        };
+    };
+    setupAlertLocalization();
     const dialogThemes = {
         light: {
             name: 'light',
@@ -136,6 +274,7 @@
         styleDialogButtons(dialog, palette);
         styleDialogForm(dialog, palette);
         styleDialogCallouts(dialog, palette);
+        localizeDialogText(dialog);
     }
 
     function styleDialogButtons(dialog, palette) {
@@ -251,12 +390,14 @@
     }
 
     function setIconIfIdle(btn) {
-        if (!btn || btn.disabled) return;
+        if (!btn) return;
+        btn.title = uiText.exportLabel;
+        btn.setAttribute('aria-label', uiText.exportLabel);
+        localizeButtonText(btn);
+        if (btn.disabled) return;
         if (btn.textContent.trim() !== ICON_LABEL) {
             btn.textContent = ICON_LABEL;
         }
-        btn.title = 'Export Conversations';
-        btn.setAttribute('aria-label', 'Export Conversations');
     }
 
     function attachButtonObserver(btn) {
