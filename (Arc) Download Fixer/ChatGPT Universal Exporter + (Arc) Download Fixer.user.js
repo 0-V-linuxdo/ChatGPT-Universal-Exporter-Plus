@@ -1,8 +1,9 @@
 // ==UserScript==
-// @name         ChatGPT Universal Exporter - (Arc) Download Fixer
-// @namespace    https://github.com/0-V-linuxdo/Fix-ChatGPT-Universal-Exporter-
-// @version      8.2.0
-// @description  Work around Arc download hang by asking for a save location up front and writing the ZIP via the File System Access API before showing the success alert.
+// @name         [ChatGPT Universal Exporter] + (Arc) Download Fixer [20260115] v1.0.0
+// @namespace    https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus
+// @version      [20260115] v1.0.0
+// @update-log   [20260115] v1.0.0 默认保存名改为 [Team]「YYYY-MM-DD」「HH：mm：ss」并在 Arc 预先提示保存；
+// @description  Arc 浏览器下载修复：预先提示保存位置并用文件系统 API 直接写入 ZIP，避免导出卡住后才弹框。
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
 // @run-at       document-idle
@@ -34,6 +35,33 @@
     let pendingDownload = null;
     let pendingDownloadError = null;
     let chosenHandle = null;
+    const pad2 = (num) => String(num).padStart(2, '0');
+    const sanitizeLabel = (label) => {
+        const cleaned = (label || '').replace(/[\\/:*?"<>|]/g, '-').trim();
+        return cleaned || 'Team';
+    };
+    const buildDefaultZipName = (label) => {
+        const now = new Date();
+        const datePart = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+        const timePart = `${pad2(now.getHours())}：${pad2(now.getMinutes())}：${pad2(now.getSeconds())}`;
+        return `[${sanitizeLabel(label)}]「${datePart}」「${timePart}」.zip`;
+    };
+    const inferLabelFromName = (rawName) => {
+        if (!rawName) return null;
+        if (/personal/i.test(rawName)) return 'Personal';
+        const teamMatch = rawName.match(/chatgpt_team_backup_([^_]+)_/i);
+        if (teamMatch?.[1]) return teamMatch[1];
+        const wsMatch = rawName.match(/ws-[0-9a-z-]+/i);
+        if (wsMatch?.[0]) return wsMatch[0];
+        return null;
+    };
+    const deriveTeamLabelFromDialog = () => {
+        const radioChecked = document.querySelector('input[name="workspace_id"]:checked');
+        const codeEl = document.getElementById('workspace-id-code');
+        const inputEl = document.getElementById('team-id-input');
+        const raw = radioChecked?.value || codeEl?.textContent || (inputEl?.value || '').trim();
+        return sanitizeLabel(raw || 'Team');
+    };
 
     URL.createObjectURL = function (blob) {
         const url = originalCreateObjectURL.call(URL, blob);
@@ -63,10 +91,11 @@
         return href.startsWith('blob:') && name.endsWith('.zip');
     }
 
-    async function promptFileHandle(defaultName) {
+    async function promptFileHandle(defaultName, teamLabel) {
         if (!window.showSaveFilePicker) return null;
+        const suggestedName = defaultName || buildDefaultZipName(teamLabel);
         return window.showSaveFilePicker({
-            suggestedName: defaultName || 'chatgpt_export.zip',
+            suggestedName,
             types: [
                 {
                     description: 'ZIP archive',
@@ -79,11 +108,11 @@
         });
     }
 
-    async function saveBlob(blob, filename) {
+    async function saveBlob(blob, filename, teamLabel) {
         if (!blob) throw new Error('Missing blob for export file');
         let handle = chosenHandle;
         if (!handle && window.showSaveFilePicker) {
-            handle = await promptFileHandle(filename);
+            handle = await promptFileHandle(filename, teamLabel);
         }
         if (!handle || !handle.createWritable) {
             throw new Error('未选择保存位置，无法写入文件');
@@ -100,14 +129,15 @@
         }
 
         const href = this.href;
-        const filename = this.download || 'chatgpt_export.zip';
+        const label = inferLabelFromName(this.download) || 'Team';
+        const filename = buildDefaultZipName(label);
         const blob = blobStore.get(href);
         pendingDownloadError = null;
 
         const writeTask = (async () => {
             try {
                 const data = blob || await fetch(href).then(r => r.blob());
-                await saveBlob(data, filename);
+                await saveBlob(data, filename, label);
             } catch (err) {
                 pendingDownloadError = err;
                 throw err;
@@ -148,7 +178,9 @@
 
         (async () => {
             try {
-                const handle = await promptFileHandle();
+                const label = btn.id === 'start-team-export-btn' ? deriveTeamLabelFromDialog() : 'Personal';
+                const suggestedName = buildDefaultZipName(label);
+                const handle = await promptFileHandle(suggestedName, label);
                 if (!handle) return;
                 chosenHandle = handle;
                 btn.dataset.cgueArcPrompted = '1';
