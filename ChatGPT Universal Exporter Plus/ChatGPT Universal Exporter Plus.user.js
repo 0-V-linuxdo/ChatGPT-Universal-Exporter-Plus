@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         ChatGPT Universal Exporter Plus [20260121] v1.0.1
+// @name         ChatGPT Universal Exporter Plus [20260124] v1.0.0
 // @namespace    https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus
-// @version      [20260121] v1.0.1
-// @update-log   [20260121] v1.0.1 备份位置图标随本地/Drive 选择切换。
+// @version      [20260124] v1.0.0
+// @update-log   [20260124] v1.0.0 修复 ZIP 生成卡住导致导出失败。
 // @description  Export ChatGPT conversations to ZIP: all or selected, personal/team workspaces, root filters, local save or Google Drive backup, compact UI.
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
@@ -109,7 +109,9 @@
             exportModeDesc: 'Select a full export or pick specific conversations.',
             exportAllDesc: 'Export every conversation in this workspace.',
             selectDesc: 'Pick specific conversations to export.',
-            exportAll: 'Export all (ZIP)',
+            exportTargetLocal: 'ZIP',
+            exportTargetDrive: 'Google Drive',
+            exportAll: (target = 'ZIP') => `Export all (${target})`,
             selectConversations: 'Select conversations',
             teamDialogTitle: 'Export Team Workspace',
             workspaceMultiPrompt: '🔎 Multiple workspaces detected. Please choose one:',
@@ -125,7 +127,7 @@
             selectedCount: (selected, total) => `Selected ${selected} of ${total}`,
             loadingConversations: 'Loading conversations…',
             noConversations: 'No conversations found.',
-            exportSelected: 'Export selected (ZIP)',
+            exportSelected: (target = 'ZIP') => `Export selected (${target})`,
             backupTitle: 'Backup destination',
             backupDesc: 'Choose where the ZIP should be saved.',
             backupLocal: 'Local file',
@@ -196,7 +198,9 @@
             exportModeDesc: '可导出全部对话或自选部分对话。',
             exportAllDesc: '导出当前空间内的全部对话。',
             selectDesc: '选择需要导出的指定对话。',
-            exportAll: '导出全部 (ZIP)',
+            exportTargetLocal: 'ZIP',
+            exportTargetDrive: 'Google Drive',
+            exportAll: (target = 'ZIP') => `导出全部 (${target})`,
             selectConversations: '选择聊天记录',
             teamDialogTitle: '导出团队空间',
             workspaceMultiPrompt: '🔎 检测到多个 Workspace，请选择一个:',
@@ -212,7 +216,7 @@
             selectedCount: (selected, total) => `已选择 ${selected} / ${total}`,
             loadingConversations: '加载对话列表中…',
             noConversations: '未找到对话。',
-            exportSelected: '导出已选 (ZIP)',
+            exportSelected: (target = 'ZIP') => `导出已选 (${target})`,
             backupTitle: '备份位置',
             backupDesc: '选择 ZIP 备份的保存位置。',
             backupLocal: '本地文件',
@@ -297,6 +301,10 @@
         if (typeof entry === 'function') return entry(...args);
         return entry || key;
     };
+
+    const getExportTargetLabel = (targets = state.backupTargets) => (
+        targets && targets.drive ? t('exportTargetDrive') : t('exportTargetLocal')
+    );
 
     const getRootLabelFromArchived = (isArchived) => (
         isArchived ? t('rootArchivedShort') : t('rootActiveShort')
@@ -1009,6 +1017,58 @@
         URL.revokeObjectURL(a.href);
     }
 
+    function shouldPatchSetImmediate() {
+        try {
+            if (typeof GM_xmlhttpRequest !== 'function') return false;
+        } catch (_) {
+            return false;
+        }
+        try {
+            if (typeof unsafeWindow === 'undefined') return false;
+            return unsafeWindow !== window;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function patchSetImmediate() {
+        const root = typeof globalThis !== 'undefined' ? globalThis : window;
+        const originalSetImmediate = root.setImmediate;
+        const originalClearImmediate = root.clearImmediate;
+        root.setImmediate = (callback, ...args) => setTimeout(callback, 0, ...args);
+        root.clearImmediate = (id) => clearTimeout(id);
+        return () => {
+            if (originalSetImmediate) {
+                root.setImmediate = originalSetImmediate;
+            } else {
+                try {
+                    delete root.setImmediate;
+                } catch (_) {}
+            }
+            if (originalClearImmediate) {
+                root.clearImmediate = originalClearImmediate;
+            } else {
+                try {
+                    delete root.clearImmediate;
+                } catch (_) {}
+            }
+        };
+    }
+
+    async function generateZipBlob(zip) {
+        if (!zip) return null;
+        let restore = null;
+        if (shouldPatchSetImmediate()) {
+            // Avoid userscript sandbox setImmediate stalls in JSZip.
+            restore = patchSetImmediate();
+        }
+        try {
+            return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+        } finally {
+            if (restore) restore();
+        }
+    }
+
     const pad2 = (num) => String(num).padStart(2, '0');
     const sanitizeLabel = (label) => {
         const cleaned = (label || '').replace(/[\\/:*?"<>|]/g, '-').trim();
@@ -1022,11 +1082,8 @@
     };
 
     function buildDownloadFilename(mode, workspaceId) {
-        const date = new Date().toISOString().slice(0, 10);
-        if (mode === 'team') {
-            return `chatgpt_team_backup_${workspaceId}_${date}.zip`;
-        }
-        return `chatgpt_personal_backup_${date}.zip`;
+        const label = mode === 'team' ? (workspaceId || 'Team') : 'Personal';
+        return buildDefaultZipName(label);
     }
 
     async function promptSaveHandle(defaultLabel) {
@@ -1513,7 +1570,7 @@
             let blob = null;
             if (zip) {
                 setButtonStatus(t('statusGeneratingZip'));
-                blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+                blob = await generateZipBlob(zip);
             }
             const driveResult = targets.drive
                 ? { ok: Boolean(driveFolderId && !driveError), error: driveError }
@@ -1655,7 +1712,7 @@
             let blob = null;
             if (zip) {
                 setButtonStatus(t('statusGeneratingZip'));
-                blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+                blob = await generateZipBlob(zip);
             }
             const driveResult = targets.drive
                 ? { ok: Boolean(driveFolderId && !driveError), error: driveError }
@@ -2741,6 +2798,8 @@
         const scopeLabel = state.scope === 'team' && state.workspaceId
             ? `<div class="cgue-callout info"><strong>${t('teamTitle')}:</strong> <code>${state.workspaceId}</code></div>`
             : '';
+        const exportTargetLabel = getExportTargetLabel();
+        const exportAllLabel = t('exportAll', exportTargetLabel);
 
         dialog.innerHTML = `
             <h2>${t('exportModeTitle')}</h2>
@@ -2749,7 +2808,7 @@
             <div class="cgue-card-list">
                 <div id="cgue-export-all" class="cgue-card-btn cgue-card-row" role="button" tabindex="0">
                     <div class="cgue-card-content">
-                        <strong>${t('exportAll')}</strong>
+                        <strong>${exportAllLabel}</strong>
                         <p>${t('exportAllDesc')}</p>
                     </div>
                     <div class="cgue-card-controls">
@@ -2820,6 +2879,8 @@
     function renderSelectionStep(dialog) {
         state.stepToken += 1;
         const stepToken = state.stepToken;
+        const exportTargetLabel = getExportTargetLabel();
+        const exportSelectedLabel = t('exportSelected', exportTargetLabel);
 
         dialog.innerHTML = `
             <h2>${t('selectionTitle')}</h2>
@@ -2836,7 +2897,7 @@
             <div id="cgue-conv-list" class="cgue-conv-list"></div>
             <div class="cgue-actions">
                 <button id="cgue-back" class="cgue-btn">${t('back')}</button>
-                <button id="cgue-export-selected" class="cgue-btn cgue-primary" disabled>${t('exportSelected')}</button>
+                <button id="cgue-export-selected" class="cgue-btn cgue-primary" disabled>${exportSelectedLabel}</button>
             </div>
         `;
 
