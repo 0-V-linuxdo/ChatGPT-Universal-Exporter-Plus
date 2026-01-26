@@ -1,13 +1,15 @@
 // ==UserScript==
-// @name         ChatGPT Universal Exporter Plus [20260124] v1.0.0
+// @name         ChatGPT Universal Exporter Plus [20260126] v1.0.0
 // @namespace    https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus
-// @version      [20260124] v1.0.0
-// @update-log   [20260124] v1.0.0 修复 ZIP 生成卡住导致导出失败。
+// @version      [20260126] v1.0.0
+// @update-log   [20260126] v1.0.0 存储改用 GM API，优化持久化方式。
 // @description  Export ChatGPT conversations to ZIP: all or selected, personal/team workspaces, root filters, local save or Google Drive backup, compact UI.
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @connect      oauth2.googleapis.com
 // @connect      www.googleapis.com
 // @run-at       document-idle
@@ -48,6 +50,29 @@
     const BACKUP_BUTTON_ID = 'cgue-backup-settings-btn';
     const BACKUP_ICON_DRIVE = '☁️';
     const BACKUP_ICON_LOCAL = '💾';
+
+    const readStoredValue = (key) => {
+        if (typeof GM_getValue === 'function') {
+            const stored = GM_getValue(key, null);
+            if (stored !== null && stored !== undefined) return stored;
+            return null;
+        }
+        try {
+            return localStorage.getItem(key);
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const writeStoredValue = (key, value) => {
+        if (typeof GM_setValue === 'function') {
+            GM_setValue(key, value);
+            return;
+        }
+        try {
+            localStorage.setItem(key, value);
+        } catch (_) {}
+    };
 
     let accessToken = null;
     const capturedWorkspaceIds = new Set();
@@ -325,7 +350,7 @@
             fileName: ''
         };
         try {
-            const raw = localStorage.getItem(DRIVE_SETTINGS_KEY);
+            const raw = readStoredValue(DRIVE_SETTINGS_KEY);
             if (!raw) return { ...fallback };
             const parsed = JSON.parse(raw);
             return { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) };
@@ -352,7 +377,7 @@
         const preferDrive = defaultDriveEnabled === true;
         const fallback = normalizeBackupTargets({ local: true, drive: preferDrive }, preferDrive);
         try {
-            const raw = localStorage.getItem(BACKUP_TARGETS_KEY);
+            const raw = readStoredValue(BACKUP_TARGETS_KEY);
             if (!raw) return { ...fallback };
             const parsed = JSON.parse(raw);
             if (!parsed || typeof parsed !== 'object') return { ...fallback };
@@ -371,7 +396,7 @@
             includeRootArchived: true
         };
         try {
-            const raw = localStorage.getItem(EXPORT_OPTIONS_KEY);
+            const raw = readStoredValue(EXPORT_OPTIONS_KEY);
             if (!raw) return { ...fallback };
             const parsed = JSON.parse(raw);
             if (!parsed || typeof parsed !== 'object') return { ...fallback };
@@ -407,7 +432,7 @@
             resetDriveAuthCache();
         }
         try {
-            localStorage.setItem(DRIVE_SETTINGS_KEY, JSON.stringify(driveSettings));
+            writeStoredValue(DRIVE_SETTINGS_KEY, JSON.stringify(driveSettings));
         } catch (error) {
             console.warn('[CGUE Plus] Drive settings persist failed:', error);
         }
@@ -419,7 +444,7 @@
         const normalized = normalizeBackupTargets(next, driveSettings.enabled === true);
         state.backupTargets = normalized;
         try {
-            localStorage.setItem(BACKUP_TARGETS_KEY, JSON.stringify(normalized));
+            writeStoredValue(BACKUP_TARGETS_KEY, JSON.stringify(normalized));
         } catch (error) {
             console.warn('[CGUE Plus] Backup targets persist failed:', error);
         }
@@ -430,7 +455,7 @@
         const next = { ...state.exportAllOptions, ...patch };
         state.exportAllOptions = next;
         try {
-            localStorage.setItem(EXPORT_OPTIONS_KEY, JSON.stringify(next));
+            writeStoredValue(EXPORT_OPTIONS_KEY, JSON.stringify(next));
         } catch (error) {
             console.warn('[CGUE Plus] Export options persist failed:', error);
         }
@@ -2255,7 +2280,7 @@
             .cgue-workspace-row {
                 display: inline-flex;
                 align-items: center;
-                gap: 8px;
+                gap: 2px;
             }
             .cgue-workspace-row code {
                 margin-top: 0;
@@ -2264,8 +2289,24 @@
                 margin-left: 8px;
             }
             .cgue-workspace-index {
+                display: inline-flex;
+                align-items: baseline;
+                gap: 6px;
                 font-size: 12px;
                 font-weight: 600;
+            }
+            .cgue-workspace-number {
+                font-size: 16px;
+                font-weight: 700;
+            }
+            .cgue-workspace-label {
+                font-size: 16px;
+                font-weight: 600;
+                letter-spacing: 0.2px;
+                color: currentColor;
+                opacity: 0.75;
+                line-height: 1;
+                margin-left: 10px;
             }
             .cgue-input {
                 width: 100%;
@@ -2724,7 +2765,14 @@
                 row.className = 'cgue-workspace-row';
                 const marker = document.createElement('span');
                 marker.className = 'cgue-workspace-index';
-                marker.textContent = `#${index + 1}`;
+                const number = document.createElement('span');
+                number.className = 'cgue-workspace-number';
+                number.textContent = `#${index + 1}`;
+                const labelText = document.createElement('span');
+                labelText.className = 'cgue-workspace-label';
+                labelText.textContent = 'ID：';
+                marker.appendChild(number);
+                marker.appendChild(labelText);
                 const code = document.createElement('code');
                 code.textContent = id;
                 label.appendChild(input);
@@ -2742,7 +2790,14 @@
             row.className = 'cgue-workspace-row';
             const marker = document.createElement('span');
             marker.className = 'cgue-workspace-index';
-            marker.textContent = '#1';
+            const number = document.createElement('span');
+            number.className = 'cgue-workspace-number';
+            number.textContent = '#1';
+            const labelText = document.createElement('span');
+            labelText.className = 'cgue-workspace-label';
+            labelText.textContent = 'ID：';
+            marker.appendChild(number);
+            marker.appendChild(labelText);
             const code = document.createElement('code');
             code.id = 'workspace-id-code';
             code.textContent = detectedIds[0];
