@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">ChatGPT Universal Exporter Icon 01</title>
+  <desc id="desc">Optimized icon variant 01 with ChatGPT logo, Cloud toggle and ZIP toggle.</desc>
+  <defs>
+    <linearGradient id="folderTop07" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d4ecff"/>
+      <stop offset="1" stop-color="#b1defd"/>
+    </linearGradient>
+    <linearGradient id="folderBody07" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#afdeff"/>
+      <stop offset="1" stop-color="#7cbef2"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(-5 -48)">
+  <path d="M84 206c0-24 20-44 44-44h100c5 0 9 2 13 5l24 21q4 4 13 4h116c24 0 44 20 44 44v18H84z" fill="url(#folderTop07)" stroke="#327fc4" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M84 254h354v136c0 31-25 56-56 56H140c-31 0-56-25-56-56z" fill="url(#folderBody07)" stroke="#327fc4" stroke-width="7"/>
+
+  <rect x="122" y="286" width="278" height="120" rx="22" fill="#eef8ff" fill-opacity="0.46"/>
+  <path d="M154 318h94M154 346h80M154 374h56" stroke="#7299bd" stroke-width="10" stroke-linecap="round"/>
+
+  <path d="M334 340v12" stroke="#80a6c8" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 6"/>
+
+  <g transform="rotate(3 334 321)">
+    <rect x="274" y="304" width="120" height="34" rx="17" fill="#ffffff" fill-opacity="0.9" stroke="#8eb4d5" stroke-width="2"/>
+    <path d="M289 329c-4 0-7-3-7-7 0-4 3-7 7-7h1c1-3 4-5 7-5 4 0 7 3 8 7h1c4 0 7 3 7 7s-3 7-7 7z" transform="rotate(-2.6 301 321)" fill="#82bbff" stroke="#1d4ed8" stroke-width="1.8"/>
+    <text x="340" y="325" font-size="13" font-family="SF Pro Text, -apple-system, Segoe UI, sans-serif" font-weight="700" fill="#1e4f7a" text-anchor="middle">Cloud</text>
+    <circle cx="378" cy="321" r="5.5" fill="#2563eb"/>
+  </g>
+
+  <g transform="rotate(2 339 367)">
+    <rect x="286" y="350" width="108" height="34" rx="17" fill="#ffffff" fill-opacity="0.88" stroke="#8eb4d5" stroke-width="2"/>
+    <rect x="300" y="356" width="22" height="22" rx="6" fill="#6ea8db"/>
+    <path d="M306 363h10M306 368h10M306 373h10" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round"/>
+    <text x="350" y="371" font-size="13" font-family="SF Pro Text, -apple-system, Segoe UI, sans-serif" font-weight="700" fill="#2b5e8f" text-anchor="middle">ZIP</text>
+    <circle cx="382" cy="367" r="5.5" fill="none" stroke="#7e9fbf" stroke-width="1.8"/>
+  </g>
+
+  <g>
+    <circle cx="136" cy="208" r="36" fill="#ffffff"/>
+    <g transform="translate(108 180) scale(2.35)">
+      <path fill="#111111" d="M21.55 10.004a5.416 5.416 0 00-.478-4.501c-1.217-2.09-3.662-3.166-6.05-2.66A5.59 5.59 0 0010.831 1C8.39.995 6.224 2.546 5.473 4.838A5.553 5.553 0 001.76 7.496a5.487 5.487 0 00.691 6.5 5.416 5.416 0 00.477 4.502c1.217 2.09 3.662 3.165 6.05 2.66A5.586 5.586 0 0013.168 23c2.443.006 4.61-1.546 5.361-3.84a5.553 5.553 0 003.715-2.66 5.488 5.488 0 00-.693-6.497v.001zm-8.381 11.558a4.199 4.199 0 01-2.675-.954c.034-.018.093-.05.132-.074l4.44-2.53a.71.71 0 00.364-.623v-6.176l1.877 1.069c.02.01.033.029.036.05v5.115c-.003 2.274-1.87 4.118-4.174 4.123zM4.192 17.78a4.059 4.059 0 01-.498-2.763c.032.02.09.055.131.078l4.44 2.53c.225.13.504.13.73 0l5.42-3.088v2.138a.068.068 0 01-.027.057L9.9 19.288c-1.999 1.136-4.552.46-5.707-1.51h-.001zM3.023 8.216A4.15 4.15 0 015.198 6.41l-.002.151v5.06a.711.711 0 00.364.624l5.42 3.087-1.876 1.07a.067.067 0 01-.063.005l-4.489-2.559c-1.995-1.14-2.679-3.658-1.53-5.63h.001zm15.417 3.54l-5.42-3.088L14.896 7.6a.067.067 0 01.063-.006l4.489 2.557c1.998 1.14 2.683 3.662 1.529 5.633a4.163 4.163 0 01-2.174 1.807V12.38a.71.71 0 00-.363-.623zm1.867-2.773a6.04 6.04 0 00-.132-.078l-4.44-2.53a.731.731 0 00-.729 0l-5.42 3.088V7.325a.068.068 0 01.027-.057L14.1 4.713c2-1.137 4.555-.46 5.707 1.513.487.833.664 1.809.499 2.757h.001zm-11.741 3.81l-1.877-1.068a.065.065 0 01-.036-.051V6.559c.001-2.277 1.873-4.122 4.181-4.12.976 0 1.92.338 2.671.954-.034.018-.092.05-.131.073l-4.44 2.53a.71.71 0 00-.365.623l-.003 6.173v.002zm1.02-2.168L12 9.25l2.414 1.375v2.75L12 14.75l-2.415-1.375v-2.75z"/>
+    </g>
+  </g>
+  </g>
+</svg>
