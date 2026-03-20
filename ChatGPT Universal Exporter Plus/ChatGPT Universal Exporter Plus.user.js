@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         ChatGPT Universal Exporter Plus [20260308] v1.2.0
+// @name         ChatGPT Universal Exporter Plus [20260320] v1.0.3
 // @namespace    https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus
-// @version      [20260308] v1.2.0
-// @update-log   [20260308] v1.2.0 修正 Backup destination 弹窗关闭逻辑；仅允许通过右上角关闭按钮关闭。
+// @version      [20260320] v1.0.3
+// @update-log   [20260320] v1.0.3 Auto sync 页面问号说明改为 hover 即显示自定义提示；移除浏览器默认 title 提示。
 // @description  导出 ChatGPT 对话到本地 ZIP 或 Google Drive，支持个人/团队空间、自选会话、根目录筛选和 Drive 自动增量同步。
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
@@ -16,6 +16,7 @@
 // @connect      www.googleapis.com
 // @run-at       document-idle
 // @license      MIT
+// @icon         https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus/raw/refs/heads/main/icon/icon.svg
 // ==/UserScript==
 
 // ================================================
@@ -50,9 +51,202 @@
     const DRIVE_FILENAME_PLACEHOLDER = '{{workspace}} {{date}} {{time}}.zip';
     const BACKUP_OVERLAY_ID = 'cgue-backup-overlay';
     const BACKUP_DIALOG_ID = 'cgue-backup-dialog';
+    const BACKUP_STEP_CLASS = 'cgue-backup-shell';
     const BACKUP_BUTTON_ID = 'cgue-backup-settings-btn';
     const BACKUP_ICON_DRIVE = '☁️';
     const BACKUP_ICON_LOCAL = '💾';
+    const AUTO_SYNC_PAGE_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+            <desc>Fastforward Clock Streamline Icon: https://streamlinehq.com</desc>
+            <g id="fastforward-clock--time-clock-reset-stopwatch-circle-measure-loading">
+                <path
+                    id="Vector"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M7 3.5v4l2.6 1.3"
+                    stroke-width="1"
+                />
+                <path
+                    id="Ellipse 1115"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    d="M13.3261 8.5c-0.6772 2.8667 -3.2525 5 -6.3261 5C3.41015 13.5 0.5 10.5899 0.5 7 0.5 3.41015 3.41015 0.5 7 0.5c2.50772 0 4.6838 1.42011 5.7678 3.5"
+                    stroke-width="1"
+                />
+                <path
+                    id="Vector_2"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M13.5 2v2.5H11"
+                    stroke-width="1"
+                />
+            </g>
+        </svg>
+    `;
+    const AUTO_DRIVE_PAUSE_ICON = `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M14 9V15M10 9V15M12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    `;
+    const AUTO_DRIVE_RESUME_ICON = `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M3 12C3 16.9706 7.02944 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+            <path
+                d="M10 15V9L15 12L10 15Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    `;
+    const AUTO_DRIVE_REFRESH_ICON = `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M4.06189 13C4.02104 12.6724 4 12.3387 4 12C4 7.58172 7.58172 4 12 4C14.5006 4 16.7332 5.14727 18.2002 6.94416M19.9381 11C19.979 11.3276 20 11.6613 20 12C20 16.4183 16.4183 20 12 20C9.61061 20 7.46589 18.9525 6 17.2916M9 17H6V17.2916M18.2002 4V6.94416M18.2002 6.94416V6.99993L15.2002 7M6 20V17.2916"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    `;
+    const AUTO_DRIVE_RUN_NOW_ICON = `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <circle
+                cx="12"
+                cy="12"
+                r="9"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-miterlimit="10"
+            />
+            <path
+                d="M6.27 9.14V14.86L11.04 12L6.27 9.14Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+            />
+            <path
+                d="M12 9.14V14.86L16.77 12L12 9.14Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+            />
+            <path
+                d="M17.73 7.23V16.77"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+            />
+        </svg>
+    `;
+    const AUTO_DRIVE_EDIT_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M11.331 3.568a3.61 3.61 0 0 1 4.973.128l.128.135a3.61 3.61 0 0 1 0 4.838l-.128.135-6.292 6.29c-.324.324-.558.561-.79.752l-.235.177q-.309.21-.65.36l-.23.093c-.181.066-.369.114-.585.159l-.765.135-2.394.399c-.142.024-.294.05-.422.06-.1.007-.233.01-.378-.026l-.149-.049a1.1 1.1 0 0 1-.522-.474l-.046-.094a1.1 1.1 0 0 1-.074-.526c.01-.129.035-.28.06-.423l.398-2.394.134-.764a4 4 0 0 1 .16-.586l.093-.23q.15-.342.36-.65l.176-.235c.19-.232.429-.466.752-.79l6.291-6.292zm-5.485 7.36c-.35.35-.533.535-.66.688l-.11.147a2.7 2.7 0 0 0-.24.433l-.062.155c-.04.11-.072.225-.106.394l-.127.717-.398 2.393-.001.002h.003l2.393-.399.717-.126c.169-.034.284-.065.395-.105l.153-.062q.228-.1.433-.241l.148-.11c.153-.126.338-.31.687-.66l4.988-4.988-3.226-3.226zm9.517-6.291a2.28 2.28 0 0 0-3.053-.157l-.173.157-.364.363L15 8.226l.363-.363.157-.174a2.28 2.28 0 0 0 0-2.878z"
+                fill="currentColor"
+            />
+        </svg>
+    `;
+    const AUTO_DRIVE_ADD_TASK_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M2.669 11.333V8.667c0-.922 0-1.655.048-2.244.048-.597.15-1.106.387-1.571l.155-.276a4 4 0 0 1 1.593-1.472l.177-.083c.418-.179.872-.263 1.395-.305.589-.048 1.32-.048 2.243-.048h.5a.665.665 0 0 1 0 1.33h-.5c-.944 0-1.613 0-2.135.043-.386.032-.66.085-.876.162l-.2.086a2.67 2.67 0 0 0-1.064.982l-.102.184c-.126.247-.206.562-.248 1.076-.043.523-.043 1.192-.043 2.136v2.666c0 .944 0 1.613.043 2.136.042.514.122.829.248 1.076l.102.184c.257.418.624.758 1.064.982l.2.086c.217.077.49.13.876.161.522.043 1.19.044 2.135.044h2.667c.944 0 1.612-.001 2.135-.044.514-.042.829-.121 1.076-.247l.184-.104c.418-.256.759-.623.983-1.062l.086-.2c.077-.217.13-.49.16-.876.043-.523.044-1.192.044-2.136v-.5a.665.665 0 0 1 1.33 0v.5c0 .922.001 1.655-.047 2.244-.043.522-.127.977-.306 1.395l-.083.176a4 4 0 0 1-1.471 1.593l-.276.154c-.466.238-.975.34-1.572.39-.59.047-1.321.047-2.243.047H8.667c-.923 0-1.654 0-2.243-.048-.523-.043-.977-.126-1.395-.305l-.177-.084a4 4 0 0 1-1.593-1.471l-.155-.276c-.237-.465-.339-.974-.387-1.57-.049-.59-.048-1.322-.048-2.245m10.796-8.22a2.43 2.43 0 0 1 3.255.167l.167.185c.727.892.727 2.18 0 3.071l-.168.185-5.046 5.048a4 4 0 0 1-1.945 1.072l-.317.058-1.817.26a.665.665 0 0 1-.752-.753l.26-1.816.058-.319a4 4 0 0 1 1.072-1.944L13.28 3.28zm2.314 1.108a1.103 1.103 0 0 0-1.476-.076l-.084.076-5.046 5.048a2.67 2.67 0 0 0-.716 1.296l-.04.212-.134.939.94-.134.211-.039a2.67 2.67 0 0 0 1.298-.716L15.78 5.78l.076-.084c.33-.404.33-.988 0-1.392z"
+                fill="currentColor"
+            />
+        </svg>
+    `;
+    const AUTO_DRIVE_DELETE_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M10.63 1.335c1.403 0 2.64.925 3.036 2.271l.215.729H17l.134.014a.665.665 0 0 1 0 1.302L17 5.665h-.346l-.797 9.326a3.165 3.165 0 0 1-3.153 2.897H7.296a3.166 3.166 0 0 1-3.113-2.594l-.04-.303-.796-9.326H3a.665.665 0 0 1 0-1.33h3.12l.214-.729.084-.248A3.165 3.165 0 0 1 9.37 1.335zM5.468 14.878l.023.176a1.835 1.835 0 0 0 1.805 1.504h5.408c.953 0 1.747-.73 1.828-1.68l.787-9.213H4.682zm2.2-2.05V8.66a.665.665 0 0 1 1.33 0v4.167a.665.665 0 0 1-1.33 0m3.334 0V8.66a.665.665 0 1 1 1.33 0v4.167a.665.665 0 0 1-1.33 0M9.37 2.664c-.763 0-1.44.47-1.712 1.173l-.049.143-.103.354h4.988l-.103-.354a1.835 1.835 0 0 0-1.761-1.316z"
+                fill="currentColor"
+            />
+        </svg>
+    `;
+    const LOCAL_FILE_OPTION_ICON = `
+        <svg viewBox="1 2 34 34" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M34 21.08L30.86 8.43A2 2 0 0 0 28.94 7H7.06A2 2 0 0 0 5.13 8.47L2 21.08a1 1 0 0 0 0 .24V29a2 2 0 0 0 2 2h28a2 2 0 0 0 2-2v-7.69a1 1 0 0 0 0-.23ZM4 29v-7.56L7.06 9h21.87L32 21.44V29Z"
+                fill="currentColor"
+            />
+            <path d="M6 20h24v2H6z" fill="currentColor"/>
+            <path d="M26 24h4v2h-4z" fill="currentColor"/>
+        </svg>
+    `;
+    const GOOGLE_DRIVE_OPTION_ICON = `
+        <svg viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
+            <path d="M16.0019 12.4507L12.541 6.34297C12.6559 6.22598 12.7881 6.14924 12.9203 6.09766C11.8998 6.43355 11.4315 7.57961 11.4315 7.57961L5.10895 18.7345C5.01999 19.0843 4.99528 19.4 5.0064 19.6781H11.9072L16.0019 12.4507Z" fill="#34A853"/>
+            <path d="M16.002 12.4507L20.0967 19.6781H26.9975C27.0086 19.4 26.9839 19.0843 26.8949 18.7345L20.5724 7.57961C20.5724 7.57961 20.1029 6.43355 19.0835 6.09766C19.2145 6.14924 19.3479 6.22598 19.4628 6.34297L16.002 12.4507Z" fill="#FBBC05"/>
+            <path d="M16.0019 12.4514L19.4628 6.34371C19.3479 6.22671 19.2144 6.14997 19.0835 6.09839C18.9327 6.04933 18.7709 6.01662 18.5954 6.00781H18.4125H13.5913H13.4084C13.2342 6.01536 13.0711 6.04807 12.9203 6.09839C12.7894 6.14997 12.6559 6.22671 12.541 6.34371L16.0019 12.4514Z" fill="#188038"/>
+            <path d="M11.9082 19.6782L8.48687 25.7168C8.48687 25.7168 8.3732 25.6614 8.21875 25.5469C8.70434 25.9206 9.17633 25.9998 9.17633 25.9998H22.6134C23.3547 25.9998 23.5092 25.7168 23.5092 25.7168C23.5116 25.7155 23.5129 25.7142 23.5153 25.713L20.0965 19.6782H11.9082Z" fill="#4285F4"/>
+            <path d="M11.9086 19.6782H5.00781C5.04241 20.4985 5.39826 20.9778 5.39826 20.9778L5.65773 21.4281C5.67627 21.4546 5.68739 21.4697 5.68739 21.4697L6.25205 22.461L7.51976 24.6676C7.55683 24.7569 7.60008 24.8386 7.6458 24.9166C7.66309 24.9431 7.67915 24.972 7.69769 24.9972C7.70263 25.0047 7.70757 25.0123 7.71252 25.0198C7.86944 25.2412 8.04489 25.4123 8.22034 25.5469C8.37479 25.6627 8.48847 25.7168 8.48847 25.7168L11.9086 19.6782Z" fill="#1967D2"/>
+            <path d="M20.0967 19.6782H26.9974C26.9628 20.4985 26.607 20.9778 26.607 20.9778L26.3475 21.4281C26.329 21.4546 26.3179 21.4697 26.3179 21.4697L25.7532 22.461L24.4855 24.6676C24.4484 24.7569 24.4052 24.8386 24.3595 24.9166C24.3422 24.9431 24.3261 24.972 24.3076 24.9972C24.3026 25.0047 24.2977 25.0123 24.2927 25.0198C24.1358 25.2412 23.9604 25.4123 23.7849 25.5469C23.6305 25.6627 23.5168 25.7168 23.5168 25.7168L20.0967 19.6782Z" fill="#EA4335"/>
+        </svg>
+    `;
+    const PERSONAL_TITLE_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+            <path d="M16.585 10a6.585 6.585 0 1 0-10.969 4.912A5.65 5.65 0 0 1 10 12.835c1.767 0 3.345.81 4.383 2.077A6.57 6.57 0 0 0 16.585 10M10 14.165a4.32 4.32 0 0 0-3.305 1.53c.972.565 2.1.89 3.305.89a6.55 6.55 0 0 0 3.303-.89A4.32 4.32 0 0 0 10 14.165M11.835 8.5a1.835 1.835 0 1 0-3.67 0 1.835 1.835 0 0 0 3.67 0m6.08 1.5a7.915 7.915 0 1 1-15.83 0 7.915 7.915 0 0 1 15.83 0m-4.75-1.5a3.165 3.165 0 1 1-6.33 0 3.165 3.165 0 0 1 6.33 0"/>
+        </svg>
+    `;
+    const TEAM_TITLE_ICON = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none" aria-hidden="true" focusable="false">
+            <circle cx="18" cy="18" r="18" fill="#3c46ff"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="m7.358 14.641 5.056-5.055A2 2 0 0 1 13.828 9h8.343a2 2 0 0 1 1.414.586l5.056 5.055a2 2 0 0 1 .055 2.771l-9.226 9.996a2 2 0 0 1-2.94 0l-9.227-9.996a2 2 0 0 1 .055-2.77Zm6.86-1.939-.426 1.281a2.07 2.07 0 0 1-1.31 1.31l-1.28.426a.296.296 0 0 0 0 .561l1.28.428a2.07 2.07 0 0 1 1.31 1.309l.427 1.28c.09.27.471.27.56 0l.428-1.28a2.07 2.07 0 0 1 1.309-1.31l1.281-.427a.296.296 0 0 0 0-.56l-1.281-.428a2.07 2.07 0 0 1-1.309-1.309l-.427-1.28a.296.296 0 0 0-.561 0z" fill="#fff"/>
+        </svg>
+    `;
+    const SPACE_TITLE_ICON = `
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+            <path d="M16.002 8.333c0-.553-.449-1.002-1.002-1.002h-2.668v8.67h3.67zm-5-3.333c0-.553-.449-1.002-1.002-1.002H5c-.553 0-1.001.45-1.001 1.002v11.001h2.836v-1.835a.666.666 0 0 1 1.33 0v1.835h2.837zm1.33 1.001H15a2.33 2.33 0 0 1 2.332 2.332v7.668h1.002l.134.014a.666.666 0 0 1 0 1.303l-.134.013H1.667a.665.665 0 0 1 0-1.33h1.002v-11a2.33 2.33 0 0 1 2.33-2.333h5A2.33 2.33 0 0 1 12.333 5z"/>
+        </svg>
+    `;
+    const STORAGE_TITLE_ICON = `
+        <svg viewBox="0 0 56 56" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M15.1444 49.5742L40.8788 49.5742C45.4725 49.5742 47.9334 47.1836 47.9334 42.5899L47.9334 19.2461C50.2072 18.8711 51.4259 17.1602 51.4259 14.6523L51.4259 11.0898C51.4259 8.2305 49.8553 6.4258 46.9724 6.4258L9.0272 6.4258C6.285 6.4258 4.5741 8.2305 4.5741 11.0898L4.5741 14.6523C4.5741 17.1602 5.8163 18.8711 8.0663 19.2461L8.0663 42.5899C8.0663 47.207 10.5507 49.5742 15.1444 49.5742ZM9.9882 15.7774C8.8163 15.7774 8.3476 15.2852 8.3476 14.1133L8.3476 11.6289C8.3476 10.4571 8.8163 9.9649 9.9882 9.9649L46.035 9.9649C47.2302 9.9649 47.6521 10.4571 47.6521 11.6289L47.6521 14.1133C47.6521 15.2852 47.2302 15.7774 46.035 15.7774ZM15.121 46.0352C13.0116 46.0352 11.8397 44.8867 11.8397 42.7774L11.8397 19.3164L44.1601 19.3164L44.1601 42.7774C44.1601 44.8867 42.9882 46.0352 40.9023 46.0352ZM20.2772 28.7617L35.7694 28.7617C36.7304 28.7617 37.4335 28.082 37.4335 27.0508L37.4335 26.3008C37.4335 25.2696 36.7304 24.6133 35.7694 24.6133L20.2772 24.6133C19.2928 24.6133 18.6132 25.2696 18.6132 26.3008L18.6132 27.0508C18.6132 28.082 19.2928 28.7617 20.2772 28.7617Z"
+                fill="currentColor"
+            />
+        </svg>
+    `;
+    const EXPORT_ALL_OPTION_ICON = `
+        <svg viewBox="0 0 512 512" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M256 85.3333H426.666667V128H256V85.3333ZM256 234.666667H426.666667V277.333333H256V234.666667ZM256 384H426.666667V426.666667H256V384ZM189.815977 46.12562L215.179945 65.6363643L139.147354 164.478733L70.530593 104.439068L91.6027405 80.3566134L134.570667 117.930666L189.815977 46.12562ZM189.815977 195.458953L215.179945 214.969698L139.147354 313.812066L70.530593 253.772401L91.6027405 229.689947L134.570667 267.264L189.815977 195.458953ZM189.815977 344.792287L215.179945 364.303031L139.147354 463.1454L70.530593 403.105734L91.6027405 379.02328L134.570667 416.597333L189.815977 344.792287Z"
+                fill="currentColor"
+            />
+        </svg>
+    `;
+    const TEAM_WORKSPACE_FIELD_ICON = `
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+            <path d="M16.002 8.333c0-.553-.449-1.002-1.002-1.002h-2.668v8.67h3.67zm-5-3.333c0-.553-.449-1.002-1.002-1.002H5c-.553 0-1.001.45-1.001 1.002v11.001h2.836v-1.835a.666.666 0 0 1 1.33 0v1.835h2.837zm1.33 1.001H15a2.33 2.33 0 0 1 2.332 2.332v7.668h1.002l.134.014a.666.666 0 0 1 0 1.303l-.134.013H1.667a.665.665 0 0 1 0-1.33h1.002v-11a2.33 2.33 0 0 1 2.33-2.333h5A2.33 2.33 0 0 1 12.333 5z"/>
+        </svg>
+    `;
+    const SELECT_CONVERSATIONS_OPTION_ICON = `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path
+                d="M8 12L11 15L16 9M4 16.8002V7.2002C4 6.08009 4 5.51962 4.21799 5.0918C4.40973 4.71547 4.71547 4.40973 5.0918 4.21799C5.51962 4 6.08009 4 7.2002 4H16.8002C17.9203 4 18.4796 4 18.9074 4.21799C19.2837 4.40973 19.5905 4.71547 19.7822 5.0918C20 5.5192 20 6.07899 20 7.19691V16.8036C20 17.9215 20 18.4805 19.7822 18.9079C19.5905 19.2842 19.2837 19.5905 18.9074 19.7822C18.48 20 17.921 20 16.8031 20H7.19691C6.07899 20 5.5192 20 5.0918 19.7822C4.71547 19.5905 4.40973 19.2842 4.21799 18.9079C4 18.4801 4 17.9203 4 16.8002Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    `;
     const AUTO_DRIVE_TASKS_STORAGE_PREFIX = 'cgue_auto_drive_tasks_';
     const AUTO_DRIVE_LEADER_STORAGE_PREFIX = 'cgue_auto_drive_leader_';
     const AUTO_DRIVE_LOCK_STORAGE_PREFIX = 'cgue_auto_drive_lock_';
@@ -71,6 +265,11 @@
     const COMP_RETRY_MAX = 10;
     const COMP_RETRY_BASE_MS = 1000;
     const COMP_RETRY_FACTOR = 2;
+    const BACKEND_AUTH_RETRY_MAX = 1;
+    const BACKEND_LIST_RETRY_MAX = 1;
+    const AUTO_DRIVE_IMMEDIATE_RETRY_MAX = 1;
+    const TEAM_WORKSPACE_MANUAL_OPTION = '__manual__';
+    const TEAM_WORKSPACE_LOADING_OPTION = '__loading__';
 
     const readStoredValue = (key) => {
         if (typeof GM_getValue === 'function') {
@@ -129,9 +328,7 @@
             Math.floor(Number(input.intervalMinutes) || AUTO_DRIVE_DEFAULT_INTERVAL_MINUTES)
         ),
         includeRootActive: input.includeRootActive !== false,
-        includeRootArchived: input.includeRootArchived !== false,
-        enabled: input.enabled !== false,
-        runOnStartup: input.runOnStartup !== false
+        includeRootArchived: input.includeRootArchived !== false
     });
 
     const createInitialAutoDriveState = () => ({
@@ -141,7 +338,6 @@
         accountLabel: '',
         accountError: '',
         tasks: [],
-        expandedTaskIds: [],
         editorOpen: false,
         editingId: '',
         form: createDefaultAutoTaskForm(),
@@ -150,13 +346,11 @@
         runningTaskIds: []
     });
 
-    const getLegacyIncrementalStorageKey = (mode, workspaceId) => {
-        if (mode === 'team') {
-            const trimmedWorkspaceId = (workspaceId || '').trim();
-            return `${INCREMENTAL_META_STORAGE_PREFIX}team_${trimmedWorkspaceId || 'unknown'}`;
-        }
-        return `${INCREMENTAL_META_STORAGE_PREFIX}personal`;
-    };
+    const createDialogWorkspaceRestoreState = () => ({
+        phase: 'origin-loading',
+        detail: '',
+        errorMessage: ''
+    });
 
     const getIncrementalStorageKey = (accountKey, mode, workspaceId) => {
         const accountSegment = (accountKey || 'anonymous').trim() || 'anonymous';
@@ -172,14 +366,6 @@
             const parsed = readStoredJsonValue(key, null);
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                 return parsed;
-            }
-            const legacyKey = getLegacyIncrementalStorageKey(mode, workspaceId);
-            const raw = localStorage.getItem(legacyKey);
-            if (!raw) return {};
-            const legacyParsed = JSON.parse(raw);
-            if (legacyParsed && typeof legacyParsed === 'object' && !Array.isArray(legacyParsed)) {
-                writeStoredJsonValue(key, legacyParsed);
-                return legacyParsed;
             }
         } catch (error) {
             console.warn('[CGUE Plus] Incremental baseline parse failed:', error);
@@ -236,6 +422,23 @@
     let autoDriveObservedAccountKey = '';
     let autoDriveTasksListenerId = null;
     let autoDriveLeaderListenerId = null;
+    let detectedTeamWorkspaceIdsCache = [];
+    let detectedTeamWorkspaceIdsLoaded = false;
+    let detectedTeamWorkspaceIdsPromise = null;
+    let dialogWorkspaceOrigin = null;
+    let dialogWorkspaceOriginPromise = null;
+    let dialogWorkspaceRestorePromise = null;
+    let dialogWorkspaceRestoreState = createDialogWorkspaceRestoreState();
+
+    const invalidateSessionCaches = () => {
+        accessToken = null;
+        sessionSnapshot = null;
+        accountContextCache = null;
+        personalAccountIdCache = '';
+        detectedTeamWorkspaceIdsCache = [];
+        detectedTeamWorkspaceIdsLoaded = false;
+        detectedTeamWorkspaceIdsPromise = null;
+    };
 
     const shortLabel = (value, max = 10) => {
         const text = (value || '').trim();
@@ -264,31 +467,52 @@
         button.textContent = getBackupTargetIcon(targets);
     };
 
+    const setDialogStepVariant = (dialog, variant = '') => {
+        if (!dialog) return;
+        dialog.classList.toggle(BACKUP_STEP_CLASS, variant === 'backup');
+    };
+
     const I18N = {
         en: {
             exportButton: 'Export Conversations',
-            dialogChooseScope: 'Space',
+            dialogChooseScope: 'Workspace',
             personalTitle: 'Personal',
             personalDesc: 'Export your personal conversations.',
             teamTitle: 'Team',
             teamDesc: 'Export team workspace conversations.',
             cancel: 'Cancel',
+            ok: 'OK',
             back: 'Back',
             next: 'Next',
             exportModeTitle: 'Choose export mode',
             exportModeDesc: 'Select a full export or pick specific conversations.',
-            exportAllDesc: 'Export every conversation in this workspace.',
+            exportAllDesc: 'Export every conversation.',
             selectDesc: 'Pick specific conversations to export.',
             exportTargetLocal: 'ZIP',
             exportTargetDrive: 'Google Drive',
             exportAll: (target = 'ZIP') => `Export all (${target})`,
             selectConversations: 'Select conversations',
-            teamDialogTitle: 'Export Team Workspace',
+            teamDialogTitle: 'Export team workspace',
             workspaceMultiPrompt: '🔎 Multiple workspaces detected. Please choose one:',
             workspaceMissingTitle: '⚠️ Unable to detect a Workspace ID.',
             workspaceMissingTip: 'Try refreshing the page or opening a team conversation, or enter it manually below.',
+            workspaceDetecting: '🔄 Detecting available Team workspaces…',
+            workspaceSelectLabel: 'Team Workspace ID',
+            workspaceSelectManual: 'Enter manually',
+            workspaceRestoreTitle: 'Workspace auto-restore',
+            workspaceRestoreDetecting: 'Resolving the original workspace for this dialog.',
+            workspaceRestoreReady: 'Returning here from another step will restore the original workspace automatically.',
+            workspaceRestoreRunning: 'Restoring the original workspace…',
+            workspaceRestoreDone: 'The original workspace has been restored.',
+            workspaceRestoreFailed: 'The original workspace could not be restored automatically.',
+            workspaceRestoreUnavailable: 'The original workspace could not be resolved yet.',
+            workspaceRestoreTarget: (value) => `Original workspace: ${value}`,
+            workspaceRestoreError: (value) => `Error: ${value}`,
+            workspaceRestoreBusy: 'Workspace choices are temporarily locked while auto-restore is running.',
+            workspaceRestoreReadyBar: (value) => `Original: ${value}`,
+            workspaceRestoreDoneBar: (value) => `Restored to: ${value}`,
             workspaceManualLabel: 'Enter Team Workspace ID manually:',
-            workspaceManualPlaceholder: 'Paste your Workspace ID (ws-...)',
+            workspaceManualPlaceholder: 'Paste your Workspace ID (UUID or ws-...)',
             selectionTitle: 'Select conversations to export',
             searchPlaceholder: 'Search by title or location',
             selectAll: 'Select all',
@@ -296,14 +520,24 @@
             clearAll: 'Clear',
             selectedCount: (selected, total) => `Selected ${selected} of ${total}`,
             loadingConversations: 'Loading conversations…',
+            statusSwitchingWorkspace: (label) => `🔄 Switching workspace: ${label}…`,
+            statusRefreshingSession: '🔄 Refreshing session…',
             noConversations: 'No conversations found.',
             exportSelected: (target = 'ZIP') => `Export selected (${target})`,
             backupTitle: 'Backup destination',
             backupDesc: 'Choose where the history should be saved.',
             backupDescCompact: 'Choose where the history should be saved.',
             backupLocal: 'Local file',
+            backupLocalShort: 'Local',
+            backupLocalTooltip: 'Local Zip',
             backupDrive: 'Google Drive',
+            backupDriveShort: 'Drive',
             backupSettingsButton: 'Backup settings',
+            autoSyncPageButton: 'Auto sync',
+            autoSyncPageTitle: 'Auto sync',
+            autoSyncPageDesc: 'Continuous Sync while this page open.',
+            autoSyncPageHintLabel: 'Auto sync details',
+            autoSyncPageHintDesc: 'Run incremental Drive sync while this page is open. Tasks are isolated by ChatGPT account and shared across tabs/domains for the same account.',
             close: 'Close',
             toastClose: 'Close notification',
             toastTypeSuccess: 'Success',
@@ -321,24 +555,22 @@
             driveSaveSettings: 'Save',
             driveSettingsSaved: 'Drive settings saved.',
             driveMissingConfig: 'Drive credentials are missing.',
-            autoSyncTitle: 'Auto Drive sync',
-            autoSyncDescSummary: 'How it works',
-            autoSyncDesc: 'Run incremental Drive sync while this page is open. Tasks are isolated by ChatGPT account and shared across tabs/domains for the same account.',
+            autoSyncTitle: 'Task',
             autoSyncAccountLoading: 'Resolving current ChatGPT account…',
-            autoSyncAccountMissing: 'Auto sync needs a signed-in ChatGPT account. Open any logged-in conversation first.',
+            autoSyncAccountMissing: 'Auto sync needs a signed-in ChatGPT account email. Refresh the page or open any logged-in conversation first.',
             autoSyncRefreshAccount: 'Refresh account',
             autoSyncTaskListTitle: 'Saved tasks',
             autoSyncNoTasks: 'No auto sync tasks for this account yet.',
             autoSyncAddTask: 'New task',
             autoSyncCreateTask: 'Create task',
+            autoSyncCreateTaskTitle: 'Create task',
             autoSyncEditTask: 'Edit task',
+            autoSyncEditTaskTitle: 'Edit task',
             autoSyncDeleteTask: 'Delete',
             autoSyncDeleteConfirm: (name) => `Delete auto sync task "${name}"?`,
             autoSyncRunNow: 'Run now',
             autoSyncPause: 'Pause',
             autoSyncResume: 'Resume',
-            autoSyncEnable: 'Enable',
-            autoSyncDisable: 'Disable',
             autoSyncTaskMode: 'Scope',
             autoSyncTaskModePersonal: 'Personal',
             autoSyncTaskModeTeam: 'Team workspace',
@@ -346,8 +578,7 @@
             autoSyncTaskLabel: 'Label',
             autoSyncTaskLabelPlaceholder: 'Optional label',
             autoSyncTaskInterval: 'Interval (minutes)',
-            autoSyncTaskEnabled: 'Enabled',
-            autoSyncRunOnStartup: 'Run once after startup',
+            autoSyncSaveAndRunNow: 'Save & run now',
             autoSyncSaveTask: 'Save task',
             autoSyncCancelEdit: 'Cancel',
             autoSyncCurrentAccount: (value) => `Current account: ${value}`,
@@ -356,22 +587,25 @@
             autoSyncTaskLastError: 'Last error',
             autoSyncTaskRoots: 'Roots',
             autoSyncTaskStatusPaused: 'Paused',
-            autoSyncTaskStatusDisabled: 'Disabled',
             autoSyncTaskStatusScheduled: 'Scheduled',
             autoSyncTaskStatusRunning: 'Running',
             autoSyncTaskExpand: 'Expand task',
             autoSyncTaskCollapse: 'Collapse task',
+            autoSyncTaskOpen: 'Open task',
+            autoSyncBackToTaskList: 'Back to task list',
+            autoSyncTaskDetails: 'Task details',
             autoSyncTaskSaved: 'Auto sync task saved.',
             autoSyncTaskExists: 'A task already exists for this scope.',
             autoSyncTaskDeleted: 'Auto sync task deleted.',
             autoSyncTaskStarted: (value) => `Auto sync started: ${value}`,
+            autoSyncTaskCompleted: (value) => `Auto sync completed: ${value}`,
             autoSyncTaskRecovered: (value) => `Auto sync recovered: ${value}`,
             autoSyncTaskFailed: (name, message) => `Auto sync failed (${name}): ${message}`,
             autoSyncTaskPausedByError: (name, message) => `Auto sync paused (${name}): ${message}`,
             autoSyncTaskBusy: 'Another export is already running for this account.',
             autoSyncWorkspaceRequired: 'Team tasks require a Workspace ID.',
             autoSyncIntervalInvalid: (value) => `Interval must be at least ${value} minutes.`,
-            autoSyncAccountRequired: 'Unable to resolve the current ChatGPT account for auto sync.',
+            autoSyncAccountRequired: 'Unable to resolve the current ChatGPT account email for auto sync. Refresh account and try again.',
             autoSyncDefaultTeamLabel: (workspaceId) => `Team ${workspaceId}`,
             autoSyncDefaultPersonalLabel: 'Personal',
             rootActiveShort: 'Active',
@@ -394,9 +628,11 @@
             statusFetchingRoot: (label, page) => `📂 ${label} p${page}`,
             statusFetchingProjects: '🔍 Fetching project list…',
             statusFetchingProject: (name) => `📂 Project: ${name}`,
+            statusFetchingProjectPage: (name, page) => `📂 Project: ${shortLabel(name)} p${page}`,
             statusExportRoot: (label, index, total) => `📥 ${label} (${index}/${total})`,
             statusExportProject: (name, index, total) => `📥 ${shortLabel(name)} (${index}/${total})`,
             statusCompRetry: (label, index, total, attempt, max) => `🔁 Retry ${shortLabel(label, 16)} (${index}/${total}) ${attempt}/${max}`,
+            statusImmediateRetry: (label, attempt, max) => `🔁 Immediate retry ${shortLabel(label, 16)} ${attempt}/${max}`,
             statusGeneratingZip: '📦 Creating ZIP file…',
             statusUploadingDrive: '☁️ Uploading to Drive…',
             statusDone: '✅ Done',
@@ -410,6 +646,7 @@
             alertExportDoneLocal: '✅ location: local file.',
             alertExportDoneDrive: '✅ location: Drive.',
             alertNoAccessToken: 'Unable to get Access Token. Please refresh the page or open any conversation and try again.',
+            alertNoPersonalWorkspace: 'Unable to resolve your personal workspace. Please refresh the page and try again.',
             alertNoWorkspace: 'Please choose or enter a valid Team Workspace ID!',
             alertNoDeviceId: 'Unable to get oai-device-id. Please ensure you are logged in and refresh the page.',
             alertNoSelection: 'Please select at least one conversation.',
@@ -425,6 +662,8 @@
             errListProject: (status) => `Listing project conversations failed (${status})`,
             errGetConversation: (status) => `Fetching conversation failed (${status})`,
             errGetProjects: (status) => `Fetching project list failed (${status})`,
+            errWorkspaceSwitchFailed: (label) => `Workspace switch did not take effect: ${label}.`,
+            errWorkspaceSwitchRequest: (status) => `Workspace switch request failed (${status})`,
             untitledConversation: 'Untitled Conversation'
         },
         zh: {
@@ -435,11 +674,12 @@
             teamTitle: '团队',
             teamDesc: '导出团队空间对话。',
             cancel: '取消',
+            ok: 'OK',
             back: '返回',
             next: '下一步',
             exportModeTitle: '选择导出方式',
             exportModeDesc: '可导出全部对话或自选部分对话。',
-            exportAllDesc: '导出当前空间内的全部对话。',
+            exportAllDesc: '导出全部对话。',
             selectDesc: '选择需要导出的指定对话。',
             exportTargetLocal: 'ZIP',
             exportTargetDrive: 'Google Drive',
@@ -449,8 +689,23 @@
             workspaceMultiPrompt: '🔎 检测到多个 Workspace，请选择一个:',
             workspaceMissingTitle: '⚠️ 未能自动检测到 Workspace ID。',
             workspaceMissingTip: '请尝试刷新页面或打开一个团队对话，或在下方手动输入。',
+            workspaceDetecting: '🔄 正在检测可用的团队 Workspace…',
+            workspaceSelectLabel: 'Team Workspace ID',
+            workspaceSelectManual: '手动输入',
+            workspaceRestoreTitle: 'Workspace 自动回正',
+            workspaceRestoreDetecting: '正在识别本次弹窗的初始 Workspace。',
+            workspaceRestoreReady: '如果从后续步骤返回这里，会自动恢复到最初的 Workspace。',
+            workspaceRestoreRunning: '正在自动回正到最初的 Workspace…',
+            workspaceRestoreDone: '当前已恢复到最初的 Workspace。',
+            workspaceRestoreFailed: '未能自动恢复到最初的 Workspace。',
+            workspaceRestoreUnavailable: '当前还无法识别本次弹窗的初始 Workspace。',
+            workspaceRestoreTarget: (value) => `初始 Workspace：${value}`,
+            workspaceRestoreError: (value) => `错误：${value}`,
+            workspaceRestoreBusy: '自动回正期间，Workspace 入口将暂时锁定。',
+            workspaceRestoreReadyBar: (value) => `初始：${value}`,
+            workspaceRestoreDoneBar: (value) => `已恢复到：${value}`,
             workspaceManualLabel: '手动输入 Team Workspace ID:',
-            workspaceManualPlaceholder: '粘贴您的 Workspace ID (ws-...)',
+            workspaceManualPlaceholder: '粘贴您的 Workspace ID（UUID 或 ws-...）',
             selectionTitle: '选择要导出的聊天记录',
             searchPlaceholder: '按标题或位置搜索',
             selectAll: '全选',
@@ -458,14 +713,24 @@
             clearAll: '清空',
             selectedCount: (selected, total) => `已选择 ${selected} / ${total}`,
             loadingConversations: '加载对话列表中…',
+            statusSwitchingWorkspace: (label) => `🔄 正在切换空间：${label}…`,
+            statusRefreshingSession: '🔄 正在刷新会话…',
             noConversations: '未找到对话。',
             exportSelected: (target = 'ZIP') => `导出已选 (${target})`,
             backupTitle: '备份位置',
             backupDesc: '选择 ZIP 备份的保存位置。',
             backupDescCompact: '选择 ZIP 备份的保存位置。',
             backupLocal: '本地文件',
+            backupLocalShort: '本地',
+            backupLocalTooltip: 'Local Zip',
             backupDrive: 'Google Drive',
+            backupDriveShort: 'Drive',
             backupSettingsButton: '备份设置',
+            autoSyncPageButton: 'Auto sync',
+            autoSyncPageTitle: 'Auto sync',
+            autoSyncPageDesc: 'Continuous Sync while this page open.',
+            autoSyncPageHintLabel: '自动同步说明',
+            autoSyncPageHintDesc: '页面保持打开时执行 Drive 增量同步。任务按 ChatGPT 账号隔离，并在同一账号的多标签页和域名之间共享。',
             close: '关闭',
             toastClose: '关闭提示',
             toastTypeSuccess: '成功',
@@ -483,24 +748,22 @@
             driveSaveSettings: '保存',
             driveSettingsSaved: 'Drive 设置已保存。',
             driveMissingConfig: 'Drive 凭据未填写完整。',
-            autoSyncTitle: '自动 Drive 同步',
-            autoSyncDescSummary: '查看说明',
-            autoSyncDesc: '页面保持打开时按任务执行 Drive 增量同步。任务按 ChatGPT 账号隔离，同账号跨标签页和跨域共享。',
+            autoSyncTitle: 'Task',
             autoSyncAccountLoading: '正在识别当前 ChatGPT 账号…',
-            autoSyncAccountMissing: '自动同步需要已登录的 ChatGPT 账号。请先打开任意已登录对话。',
+            autoSyncAccountMissing: '自动同步需要已登录 ChatGPT 账号的邮箱信息。请刷新页面或先打开任意已登录对话。',
             autoSyncRefreshAccount: '刷新账号',
             autoSyncTaskListTitle: '已保存任务',
             autoSyncNoTasks: '当前账号还没有自动同步任务。',
             autoSyncAddTask: '新建任务',
             autoSyncCreateTask: '创建任务',
+            autoSyncCreateTaskTitle: '创建任务',
             autoSyncEditTask: '编辑任务',
+            autoSyncEditTaskTitle: '编辑任务',
             autoSyncDeleteTask: '删除',
             autoSyncDeleteConfirm: (name) => `确定删除自动同步任务“${name}”吗？`,
             autoSyncRunNow: '立即执行',
             autoSyncPause: '暂停',
-            autoSyncResume: '恢复',
-            autoSyncEnable: '启用',
-            autoSyncDisable: '停用',
+            autoSyncResume: '继续',
             autoSyncTaskMode: '范围',
             autoSyncTaskModePersonal: '个人',
             autoSyncTaskModeTeam: '团队空间',
@@ -508,8 +771,7 @@
             autoSyncTaskLabel: '标签',
             autoSyncTaskLabelPlaceholder: '可选任务名称',
             autoSyncTaskInterval: '间隔（分钟）',
-            autoSyncTaskEnabled: '启用任务',
-            autoSyncRunOnStartup: '启动后执行一次',
+            autoSyncSaveAndRunNow: '保存并立即执行',
             autoSyncSaveTask: '保存任务',
             autoSyncCancelEdit: '取消',
             autoSyncCurrentAccount: (value) => `当前账号：${value}`,
@@ -518,22 +780,25 @@
             autoSyncTaskLastError: '最近错误',
             autoSyncTaskRoots: '根目录',
             autoSyncTaskStatusPaused: '已暂停',
-            autoSyncTaskStatusDisabled: '已停用',
             autoSyncTaskStatusScheduled: '已计划',
             autoSyncTaskStatusRunning: '运行中',
             autoSyncTaskExpand: '展开任务卡片',
             autoSyncTaskCollapse: '折叠任务卡片',
+            autoSyncTaskOpen: '打开任务',
+            autoSyncBackToTaskList: '返回任务列表',
+            autoSyncTaskDetails: '任务详情',
             autoSyncTaskSaved: '自动同步任务已保存。',
             autoSyncTaskExists: '该范围已有对应任务。',
             autoSyncTaskDeleted: '自动同步任务已删除。',
             autoSyncTaskStarted: (value) => `自动同步已开始：${value}`,
+            autoSyncTaskCompleted: (value) => `自动同步已完成：${value}`,
             autoSyncTaskRecovered: (value) => `自动同步已恢复：${value}`,
             autoSyncTaskFailed: (name, message) => `自动同步失败（${name}）：${message}`,
             autoSyncTaskPausedByError: (name, message) => `自动同步已暂停（${name}）：${message}`,
             autoSyncTaskBusy: '当前账号已有其他导出或自动同步任务在运行。',
             autoSyncWorkspaceRequired: '团队任务必须填写 Workspace ID。',
             autoSyncIntervalInvalid: (value) => `间隔分钟数不能小于 ${value}。`,
-            autoSyncAccountRequired: '当前无法识别 ChatGPT 账号，不能启动自动同步。',
+            autoSyncAccountRequired: '当前无法识别 ChatGPT 账号邮箱，不能启动自动同步。请刷新账号后重试。',
             autoSyncDefaultTeamLabel: (workspaceId) => `团队 ${workspaceId}`,
             autoSyncDefaultPersonalLabel: '个人',
             rootActiveShort: 'Active',
@@ -556,9 +821,11 @@
             statusFetchingRoot: (label, page) => `📂 ${label} p${page}`,
             statusFetchingProjects: '🔍 获取项目列表…',
             statusFetchingProject: (name) => `📂 项目: ${name}`,
+            statusFetchingProjectPage: (name, page) => `📂 项目: ${shortLabel(name)} p${page}`,
             statusExportRoot: (label, index, total) => `📥 ${label} (${index}/${total})`,
             statusExportProject: (name, index, total) => `📥 ${shortLabel(name)} (${index}/${total})`,
             statusCompRetry: (label, index, total, attempt, max) => `🔁 补偿重试 ${shortLabel(label, 16)} (${index}/${total}) ${attempt}/${max}`,
+            statusImmediateRetry: (label, attempt, max) => `🔁 立即重试 ${shortLabel(label, 16)} ${attempt}/${max}`,
             statusGeneratingZip: '📦 生成 ZIP 文件…',
             statusUploadingDrive: '☁️ 上传到 Drive…',
             statusDone: '✅ 完成',
@@ -572,6 +839,7 @@
             alertExportDoneLocal: '✅ location: 本地文件。',
             alertExportDoneDrive: '✅ location: Drive。',
             alertNoAccessToken: '无法获取 Access Token。请刷新页面或打开任意一个对话后再试。',
+            alertNoPersonalWorkspace: '无法识别个人空间。请刷新页面后重试。',
             alertNoWorkspace: '请选择或输入一个有效的 Team Workspace ID！',
             alertNoDeviceId: '无法获取 oai-device-id，请确保已登录并刷新页面。',
             alertNoSelection: '请至少选择一个对话。',
@@ -587,6 +855,8 @@
             errListProject: (status) => `列举项目对话失败 (${status})`,
             errGetConversation: (status) => `获取对话详情失败 (${status})`,
             errGetProjects: (status) => `获取项目列表失败 (${status})`,
+            errWorkspaceSwitchFailed: (label) => `Workspace 切换未生效：${label}。`,
+            errWorkspaceSwitchRequest: (status) => `Workspace 切换请求失败 (${status})`,
             untitledConversation: '未命名对话'
         }
     };
@@ -625,6 +895,218 @@
     const normalizeToastMessage = (message) => {
         if (message == null) return '';
         return String(message).trim();
+    };
+
+    const refreshScopeStepIfVisible = () => {
+        const dialog = document.getElementById(DIALOG_ID);
+        if (!dialog || !dialog.isConnected || dialog.dataset.cgueStep !== 'scope') return;
+        renderScopeStep(dialog);
+    };
+
+    const setDialogWorkspaceRestoreState = (patch = {}, options = {}) => {
+        const nextState = {
+            ...dialogWorkspaceRestoreState,
+            ...(patch && typeof patch === 'object' ? patch : {})
+        };
+        if (
+            dialogWorkspaceRestoreState?.phase === nextState.phase &&
+            dialogWorkspaceRestoreState?.detail === nextState.detail &&
+            dialogWorkspaceRestoreState?.errorMessage === nextState.errorMessage
+        ) {
+            return;
+        }
+        dialogWorkspaceRestoreState = nextState;
+        if (options.refresh !== false) {
+            refreshScopeStepIfVisible();
+        }
+    };
+
+    const getDialogWorkspaceRestoreIdleState = () => ({
+        phase: dialogWorkspaceOrigin?.mode
+            ? 'origin-ready'
+            : (dialogWorkspaceRestoreState?.phase === 'origin-missing' ? 'origin-missing' : 'origin-loading'),
+        detail: '',
+        errorMessage: ''
+    });
+
+    const resetDialogWorkspaceRestoreToDefault = (options = {}) => {
+        if (dialogWorkspaceRestoreState?.phase !== 'restored') return;
+        setDialogWorkspaceRestoreState({
+            phase: 'origin-ready',
+            detail: '',
+            errorMessage: ''
+        }, options);
+    };
+
+    const getDialogWorkspaceOriginLabel = (origin = dialogWorkspaceOrigin) => {
+        if (!origin?.mode) return '';
+        if (origin.mode === 'team') {
+            const workspaceId = normalizeStringValue(origin.workspaceId, false);
+            return workspaceId ? `${t('teamTitle')} · ${workspaceId}` : t('teamTitle');
+        }
+        return t('personalTitle');
+    };
+
+    const trimTrailingStatusPunctuation = (message) => (
+        normalizeToastMessage(message).replace(/[\s.…。]+$/u, '').trim()
+    );
+
+    const createProgressState = (current, total, options = {}) => {
+        const safeTotal = Math.max(0, Math.floor(Number(total) || 0));
+        const safeCurrent = safeTotal > 0
+            ? Math.max(0, Math.min(safeTotal, Math.floor(Number(current) || 0)))
+            : 0;
+        const percent = safeTotal > 0
+            ? Math.max(0, Math.min(100, Math.round((safeCurrent / safeTotal) * 100)))
+            : 0;
+        const baseLabel = `${safeCurrent}/${safeTotal}`;
+        const customLabel = normalizeStringValue(options?.label, false);
+        const suffix = normalizeStringValue(options?.suffix, false);
+        return {
+            current: safeCurrent,
+            total: safeTotal,
+            percent,
+            label: customLabel || (suffix ? `${baseLabel} ${suffix}` : baseLabel)
+        };
+    };
+
+    const getDialogWorkspaceRestoreProgressState = (phase, detailText) => {
+        const normalizedPhase = normalizeStringValue(phase, false) || 'origin-loading';
+        const normalizedDetail = trimTrailingStatusPunctuation(detailText);
+        const switchingPrefix = trimTrailingStatusPunctuation(stripLeadingStatusEmoji(t('statusSwitchingWorkspace', '')));
+        const refreshingPrefix = trimTrailingStatusPunctuation(stripLeadingStatusEmoji(t('statusRefreshingSession')));
+        let current = 0;
+        let total = 0;
+
+        if (normalizedPhase === 'restoring') {
+            total = 4;
+            if (switchingPrefix && normalizedDetail.startsWith(switchingPrefix)) {
+                current = 2;
+            } else if (refreshingPrefix && normalizedDetail.startsWith(refreshingPrefix)) {
+                current = 3;
+            } else {
+                current = 1;
+            }
+        } else if (normalizedPhase === 'restored') {
+            current = 4;
+            total = 4;
+        } else if (normalizedPhase === 'error') {
+            current = 4;
+            total = 4;
+        }
+
+        return createProgressState(current, total);
+    };
+
+    const getSelectionLoadingProgressState = (input = {}) => {
+        const status = typeof input === 'string' ? { phase: input } : (input && typeof input === 'object' ? input : {});
+        const normalizedPhase = normalizeStringValue(status.phase, false) || 'idle';
+        const includeSwitchStep = status.includeSwitchStep === true;
+        const includeRefreshStep = status.includeRefreshStep === true;
+        const rootTotal = Math.max(0, Math.floor(Number(status.rootTotal) || 0));
+        const rootIndex = Math.max(0, Math.floor(Number(status.rootIndex) || 0));
+        const projectIndex = Math.max(0, Math.floor(Number(status.projectIndex) || 0));
+        const projectTotal = Math.max(projectIndex, Math.floor(Number(status.projectTotal) || 0));
+        const page = Math.max(0, Math.floor(Number(status.page) || 0));
+        const preludeTotal = (includeSwitchStep ? 1 : 0) + (includeRefreshStep ? 1 : 0);
+        const setupTotal = preludeTotal + rootTotal + 1;
+        let current = 0;
+        let total = 0;
+
+        if (normalizedPhase === 'switching') {
+            current = 1;
+            total = Math.max(1, setupTotal);
+        } else if (normalizedPhase === 'refreshing') {
+            current = includeSwitchStep ? 2 : 1;
+            total = Math.max(current, setupTotal);
+        } else if (normalizedPhase === 'loading') {
+            current = preludeTotal;
+            total = Math.max(current, setupTotal);
+        } else if (normalizedPhase === 'root') {
+            current = preludeTotal + Math.max(1, rootIndex || 1);
+            total = Math.max(current, setupTotal);
+        } else if (normalizedPhase === 'projects') {
+            current = setupTotal;
+            total = Math.max(current, setupTotal);
+        } else if (normalizedPhase === 'project-header' || normalizedPhase === 'project') {
+            current = setupTotal + Math.max(1, projectIndex || 1);
+            total = Math.max(current, setupTotal + projectTotal);
+        } else if (normalizedPhase === 'ready' || normalizedPhase === 'error') {
+            total = Math.max(1, setupTotal + projectTotal);
+            current = total;
+        }
+
+        return createProgressState(current, total, {
+            suffix: page > 0 ? `· p${page}` : ''
+        });
+    };
+
+    const renderDialogWorkspaceRestoreCallout = () => {
+        const phase = dialogWorkspaceRestoreState?.phase || 'origin-loading';
+        const targetLabel = getDialogWorkspaceOriginLabel();
+        const detailText = stripLeadingStatusEmoji(dialogWorkspaceRestoreState?.detail || '');
+        const errorText = stripLeadingStatusEmoji(dialogWorkspaceRestoreState?.errorMessage || '');
+        const progressState = getDialogWorkspaceRestoreProgressState(phase, detailText);
+        const hasProgress = progressState.total > 0;
+        let tone = 'info';
+        let message = detailText || t('workspaceRestoreDetecting');
+
+        if (phase === 'origin-ready') {
+            message = targetLabel
+                ? t('workspaceRestoreReadyBar', targetLabel)
+                : t('workspaceRestoreReady');
+        } else if (phase === 'restoring') {
+            message = detailText || t('workspaceRestoreRunning');
+        } else if (phase === 'restored') {
+            tone = 'success';
+            message = targetLabel
+                ? t('workspaceRestoreDoneBar', targetLabel)
+                : t('workspaceRestoreDone');
+        } else if (phase === 'error') {
+            tone = 'warning';
+            message = errorText
+                ? t('workspaceRestoreError', errorText)
+                : t('workspaceRestoreFailed');
+        } else if (phase === 'origin-missing') {
+            tone = 'warning';
+            message = t('workspaceRestoreUnavailable');
+        }
+
+        return `
+            <div class="cgue-workspace-restore-callout" data-tone="${escapeHtml(tone)}" data-phase="${escapeHtml(phase)}" role="status" aria-live="polite">
+                <div class="cgue-workspace-restore-statusline">${escapeHtml(message)}</div>
+                ${hasProgress ? `
+                    <div class="cgue-workspace-restore-progress-row">
+                        <div class="cgue-workspace-restore-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressState.percent}" aria-valuetext="${escapeHtml(progressState.label)}">
+                            <span style="width:${progressState.percent}%;"></span>
+                        </div>
+                        <span class="cgue-workspace-restore-count">${escapeHtml(progressState.label)}</span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    };
+
+    const renderSelectionLoadingCallout = ({ message, tone = 'info', progressState = null } = {}) => {
+        const normalizedMessage = stripLeadingStatusEmoji(message || t('loadingConversations'));
+        const resolvedProgressState = progressState && typeof progressState === 'object'
+            ? progressState
+            : null;
+        const hasProgress = Boolean(resolvedProgressState);
+
+        return `
+            <div class="cgue-selection-loading-callout" data-tone="${escapeHtml(tone)}">
+                <div class="cgue-selection-loading-statusline">${escapeHtml(normalizedMessage)}</div>
+                ${hasProgress ? `
+                    <div class="cgue-selection-loading-progress-row">
+                        <div class="cgue-selection-loading-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${resolvedProgressState.percent}" aria-valuetext="${escapeHtml(resolvedProgressState.label)}">
+                            <span style="width:${resolvedProgressState.percent}%;"></span>
+                        </div>
+                        <span class="cgue-selection-loading-count">${escapeHtml(resolvedProgressState.label)}</span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
     };
 
     const TOAST_LEADING_MARKERS = ['✅', '⚠️', '⚠', '❌', 'ℹ️', 'ℹ', '🔔'];
@@ -942,6 +1424,7 @@
     const EXACT_WORKSPACE_ID_PATTERN = /^ws-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
     const ACCOUNT_ID_PATTERN = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i;
     const WORKSPACE_ID_PATTERN = /ws-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i;
+    const TEAMISH_PLAN_TYPES = new Set(['team', 'business']);
 
     const normalizeExplicitAccountId = (value) => {
         const raw = normalizeStringValue(typeof value === 'string' ? value.replace(/"/g, '') : '', false);
@@ -968,6 +1451,12 @@
         return accountMatch ? accountMatch[0] : '';
     };
 
+    const normalizeWorkspaceApiId = (value) => {
+        const explicitId = normalizeExplicitAccountId(value);
+        if (!explicitId) return '';
+        return extractAccountUuid(explicitId) || explicitId;
+    };
+
     const decodeJwtPayload = (token) => {
         const raw = normalizeStringValue(token, false);
         if (!raw || raw.split('.').length < 2) return {};
@@ -978,6 +1467,64 @@
         } catch (_) {
             return {};
         }
+    };
+
+    const getWorkspaceIdFromAccessToken = (token) => {
+        const payload = decodeJwtPayload(token);
+        return normalizeWorkspaceApiId(
+            firstNonEmptyValue(
+                payload?.['https://api.openai.com/auth']?.chatgpt_account_id,
+                payload?.['https://api.openai.com/auth']?.chatgpt_workspace_id
+            )
+        );
+    };
+
+    const getWorkspacePlanTypeFromAccessToken = (token) => {
+        const payload = decodeJwtPayload(token);
+        return normalizeStringValue(
+            firstNonEmptyValue(
+                payload?.['https://api.openai.com/auth']?.chatgpt_plan_type,
+                payload?.['https://api.openai.com/auth']?.chatgpt_workspace_plan_type
+            ),
+            true
+        );
+    };
+
+    const isTeamishPlanType = (planType) => TEAMISH_PLAN_TYPES.has(normalizeStringValue(planType, true));
+
+    const getNextDataPayload = () => (
+        safeJsonParse(document.getElementById('__NEXT_DATA__')?.textContent || '{}', {}) || {}
+    );
+
+    const getClientBootstrapPayload = () => (
+        safeJsonParse(document.getElementById('client-bootstrap')?.textContent || '{}', {}) || {}
+    );
+
+    const getClientBootstrapSession = () => {
+        const payload = getClientBootstrapPayload();
+        return payload?.session && typeof payload.session === 'object' ? payload.session : null;
+    };
+
+    const deriveWorkspaceContextFromSession = (session, fallbackToken = '') => {
+        const token = normalizeStringValue(session?.accessToken || fallbackToken, false);
+        return {
+            accessToken: token,
+            workspaceId: normalizeWorkspaceApiId(
+                firstNonEmptyValue(
+                    session?.account?.id,
+                    session?.account_id,
+                    getWorkspaceIdFromAccessToken(token)
+                )
+            ),
+            planType: normalizeStringValue(
+                firstNonEmptyValue(
+                    session?.account?.planType,
+                    session?.account?.plan_type,
+                    getWorkspacePlanTypeFromAccessToken(token)
+                ),
+                true
+            )
+        };
     };
 
     const normalizeAccountsPayloadEntry = (key, value) => {
@@ -1019,6 +1566,9 @@
         return {
             key: normalizeStringValue(key, false),
             id: normalizeExplicitAccountId(id) || extractAccountUuid(id),
+            structure,
+            type,
+            name,
             isPersonal: Boolean(
                 account?.is_personal ||
                 account?.isPersonal ||
@@ -1026,6 +1576,12 @@
                 value?.isPersonal ||
                 structure.includes('personal') ||
                 /\bpersonal\b/.test(`${type} ${name}`)
+            ),
+            isTeamish: Boolean(
+                isTeamishPlanType(type) ||
+                structure.includes('workspace') ||
+                structure.includes('team') ||
+                structure.includes('business')
             ),
             isDefault: Boolean(
                 account?.is_default ||
@@ -1051,18 +1607,119 @@
             .filter((item) => item.id);
     };
 
-    const pickPreferredAccountId = (items) => {
+    const extractPersonalAccountIdsFromAccountsPayload = (payload) => (
+        mergeWorkspaceIds(
+            readAccountsPayloadItems(payload)
+                .filter((item) => item?.id && item.isPersonal)
+                .map((item) => item.id)
+        )
+    );
+
+    const getDocumentPersonalAccountIds = () => {
+        const nextData = getNextDataPayload();
+        const nextDataPersonalId = pickPersonalAccountId(readAccountsPayloadItems(nextData));
+        const bootstrapContext = deriveWorkspaceContextFromSession(getClientBootstrapSession());
+        return mergeWorkspaceIds(
+            nextDataPersonalId ? [nextDataPersonalId] : [],
+            extractPersonalAccountIdsFromAccountsPayload(nextData),
+            !isTeamishPlanType(bootstrapContext.planType) && bootstrapContext.workspaceId
+                ? [bootstrapContext.workspaceId]
+                : []
+        );
+    };
+
+    const ACCOUNTS_API_ENDPOINTS = [
+        '/backend-api/accounts/check/v4-2023-04-27',
+        '/backend-api/accounts/check',
+        '/backend-api/accounts'
+    ];
+
+    const mergeWorkspaceIds = (...sources) => {
+        const foundIds = new Set();
+        sources.forEach((source) => {
+            if (!source || typeof source[Symbol.iterator] !== 'function') return;
+            for (const value of source) {
+                const workspaceId = normalizeWorkspaceApiId(value);
+                if (workspaceId) {
+                    foundIds.add(workspaceId);
+                }
+            }
+        });
+        return Array.from(foundIds);
+    };
+
+    const extractTeamWorkspaceIdsFromAccountsPayload = (payload) => {
+        const items = readAccountsPayloadItems(payload);
+        const explicitTeamItems = items.filter((item) => item?.id && item.isTeamish);
+        const fallbackItems = explicitTeamItems.length > 0
+            ? explicitTeamItems
+            : items.filter((item) => item?.id && !item.isPersonal && !item.isDefault);
+        return mergeWorkspaceIds(fallbackItems.map((item) => item.id));
+    };
+
+    const cacheDetectedTeamWorkspaceIds = (workspaceIds) => {
+        detectedTeamWorkspaceIdsCache = mergeWorkspaceIds(workspaceIds);
+        detectedTeamWorkspaceIdsLoaded = true;
+        detectedTeamWorkspaceIdsCache.forEach((workspaceId) => {
+            capturedWorkspaceIds.add(workspaceId);
+        });
+        return [...detectedTeamWorkspaceIdsCache];
+    };
+
+    const buildAccountsApiHeaders = (token) => {
+        const bearerToken = normalizeStringValue(token || accessToken, false);
+        if (!bearerToken) return null;
+
+        const headers = { Authorization: `Bearer ${bearerToken}` };
+        const deviceId = getOaiDeviceId();
+        if (deviceId) {
+            headers['oai-device-id'] = deviceId;
+        }
+        const activeAccountId = getWorkspaceIdFromAccessToken(bearerToken);
+        if (activeAccountId) {
+            headers['ChatGPT-Account-Id'] = activeAccountId;
+        }
+        return headers;
+    };
+
+    const fetchAccountsPayloadFromApi = async (token) => {
+        const headers = buildAccountsApiHeaders(token);
+        if (!headers) return null;
+
+        let fallbackData = null;
+        for (const endpoint of ACCOUNTS_API_ENDPOINTS) {
+            try {
+                const response = await fetch(endpoint, {
+                    headers,
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+                if (!response.ok) continue;
+                const data = await response.json().catch(() => null);
+                if (!data || typeof data !== 'object') continue;
+                const items = readAccountsPayloadItems(data);
+                if (items.length > 0) {
+                    return data;
+                }
+                if (!fallbackData) {
+                    fallbackData = data;
+                }
+            } catch (_) {}
+        }
+        return fallbackData;
+    };
+
+    const pickPersonalAccountId = (items) => {
         const preferred =
             items.find((item) => item.isPersonal && item.id) ||
-            items.find((item) => item.isDefault && item.id) ||
-            items.find((item) => item.id) ||
+            items.find((item) => item.isDefault && item.id && !item.isTeamish) ||
+            items.find((item) => item.id && !item.isTeamish) ||
             null;
         return preferred?.id || '';
     };
 
     const getPersonalAccountIdFromNextData = () => {
-        const nextData = safeJsonParse(document.getElementById('__NEXT_DATA__')?.textContent || '{}', {}) || {};
-        return pickPreferredAccountId(readAccountsPayloadItems(nextData));
+        return pickPersonalAccountId(readAccountsPayloadItems(getNextDataPayload()));
     };
 
     const getPersonalAccountIdFromStorage = () => {
@@ -1070,8 +1727,10 @@
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 const normalizedKey = normalizeStringValue(key, true);
-                if (!normalizedKey || (!normalizedKey.includes('account') && !normalizedKey.includes('workspace'))) continue;
+                if (!normalizedKey || !normalizedKey.includes('account')) continue;
                 const value = localStorage.getItem(key) || '';
+                const normalizedValue = normalizeStringValue(value, true);
+                if (!normalizedValue.includes('personal')) continue;
                 const accountId = extractAccountUuid(value);
                 if (accountId) return accountId;
                 const fallbackId = extractWorkspaceOrAccountId(value);
@@ -1082,37 +1741,45 @@
     };
 
     const getPersonalAccountIdFromAccountsApi = async (token) => {
-        const bearerToken = normalizeStringValue(token || accessToken, false);
-        if (!bearerToken) return '';
-
-        const headers = { Authorization: `Bearer ${bearerToken}` };
-        const deviceId = getOaiDeviceId();
-        if (deviceId) {
-            headers['oai-device-id'] = deviceId;
-        }
-
-        const endpoints = [
-            '/backend-api/accounts/check/v4-2023-04-27',
-            '/backend-api/accounts/check',
-            '/backend-api/accounts'
-        ];
-
-        for (const endpoint of endpoints) {
-            try {
-                const response = await fetch(endpoint, {
-                    headers,
-                    credentials: 'same-origin',
-                    cache: 'no-store'
-                });
-                if (!response.ok) continue;
-                const data = await response.json().catch(() => null);
-                const accountId = pickPreferredAccountId(readAccountsPayloadItems(data));
-                if (accountId) {
-                    return accountId;
-                }
-            } catch (_) {}
+        const data = await fetchAccountsPayloadFromApi(token);
+        const items = readAccountsPayloadItems(data);
+        if (items.length > 0) {
+            cacheDetectedTeamWorkspaceIds(extractTeamWorkspaceIdsFromAccountsPayload(data));
+            const accountId = pickPersonalAccountId(items);
+            if (accountId) {
+                return accountId;
+            }
         }
         return '';
+    };
+
+    const getTeamWorkspaceIdsFromAccountsApi = async (token) => {
+        const data = await fetchAccountsPayloadFromApi(token);
+        const items = readAccountsPayloadItems(data);
+        if (items.length === 0) return [];
+        return cacheDetectedTeamWorkspaceIds(extractTeamWorkspaceIdsFromAccountsPayload(data));
+    };
+
+    const ensureDetectedTeamWorkspaceIds = async (token, options = {}) => {
+        const { force = false } = options;
+        if (detectedTeamWorkspaceIdsLoaded && !force) {
+            return [...detectedTeamWorkspaceIdsCache];
+        }
+        if (!force && detectedTeamWorkspaceIdsPromise) {
+            return detectedTeamWorkspaceIdsPromise;
+        }
+        const pending = (async () => {
+            const workspaceIds = await getTeamWorkspaceIdsFromAccountsApi(token);
+            return mergeWorkspaceIds(detectedTeamWorkspaceIdsCache, workspaceIds);
+        })();
+        detectedTeamWorkspaceIdsPromise = pending;
+        try {
+            return await pending;
+        } finally {
+            if (detectedTeamWorkspaceIdsPromise === pending) {
+                detectedTeamWorkspaceIdsPromise = null;
+            }
+        }
     };
 
     const resolvePersonalAccountId = async (session) => {
@@ -1120,9 +1787,15 @@
             return personalAccountIdCache;
         }
 
+        const currentContext = deriveWorkspaceContextFromSession(session || {}, accessToken);
+        if (currentContext.workspaceId && !isTeamishPlanType(currentContext.planType)) {
+            personalAccountIdCache = currentContext.workspaceId;
+            return currentContext.workspaceId;
+        }
+
         const payloadCandidates = [session, session?.data, session?.result, session?.user];
         for (const payload of payloadCandidates) {
-            const accountId = pickPreferredAccountId(readAccountsPayloadItems(payload));
+            const accountId = pickPersonalAccountId(readAccountsPayloadItems(payload));
             if (accountId) {
                 personalAccountIdCache = accountId;
                 return accountId;
@@ -1150,18 +1823,8 @@
         return '';
     };
 
-    const buildAccountContextFromSession = async (session) => {
-        const token = normalizeStringValue(session?.accessToken || accessToken, false);
-        const payload = decodeJwtPayload(token);
-        const personalAccountId = await resolvePersonalAccountId(session || {});
-        const stableId = firstNonEmptyValue(
-            session?.user?.id,
-            session?.user?.sub,
-            session?.user_id,
-            session?.sub,
-            payload?.sub
-        );
-        const email = normalizeStringValue(
+    const getNormalizedSessionEmail = (session, payload = decodeJwtPayload(normalizeStringValue(session?.accessToken || accessToken, false))) => (
+        normalizeStringValue(
             firstNonEmptyValue(
                 session?.user?.email,
                 session?.user?.emailAddress,
@@ -1170,24 +1833,21 @@
                 payload?.email
             ),
             true
-        );
-        const legacyIdentity = stableId
-            ? `id:${stableId}`
-            : email
-                ? `email:${email}`
-                : '';
-        const hashSource = legacyIdentity || (personalAccountId ? `account:${personalAccountId}` : '');
-        if (!hashSource) return null;
-        const accountHash = hashString(hashSource);
-        const accountFolderKey = personalAccountId || accountHash;
+        )
+    );
+
+    const buildAccountContextFromSession = async (session) => {
+        const token = normalizeStringValue(session?.accessToken || accessToken, false);
+        const payload = decodeJwtPayload(token);
+        const email = getNormalizedSessionEmail(session, payload);
+        if (!email) return null;
+        const accountIdentity = `email:${email}`;
+        const accountHash = hashString(accountIdentity);
         return {
             accountKey: accountHash,
             accountHash,
-            accountFolderName: `${AUTO_DRIVE_ACCOUNT_FOLDER_PREFIX}${accountFolderKey}`,
-            legacyAccountFolderName: `${AUTO_DRIVE_ACCOUNT_FOLDER_PREFIX}${accountHash}`,
-            label: email || personalAccountId || `User ${accountHash}`,
-            personalAccountId,
-            stableId,
+            accountFolderName: `${AUTO_DRIVE_ACCOUNT_FOLDER_PREFIX}${email}`,
+            label: email,
             email
         };
     };
@@ -1251,7 +1911,9 @@
             state.autoDrive.accountLabel = context.label || context.accountKey;
             state.autoDrive.accountError = '';
             if (previousAccountKey && previousAccountKey !== context.accountKey) {
-                state.autoDrive.expandedTaskIds = [];
+                state.autoDrive.editorOpen = false;
+                state.autoDrive.editingId = '';
+                state.autoDrive.form = createDefaultAutoTaskForm();
             }
             state.autoDrive.tasks = loadAutoDriveTasks(context.accountKey);
             return;
@@ -1263,7 +1925,9 @@
         state.autoDrive.accountLabel = '';
         state.autoDrive.accountError = errorMessage || '';
         state.autoDrive.tasks = [];
-        state.autoDrive.expandedTaskIds = [];
+        state.autoDrive.editorOpen = false;
+        state.autoDrive.editingId = '';
+        state.autoDrive.form = createDefaultAutoTaskForm();
     };
 
     async function fetchSessionSnapshot(options = {}) {
@@ -1272,7 +1936,7 @@
             return sessionSnapshot;
         }
         if (force) {
-            personalAccountIdCache = '';
+            invalidateSessionCaches();
         }
         try {
             const response = await fetch('/api/auth/session?unstable_client=true', {
@@ -1283,9 +1947,25 @@
             sessionSnapshot = session && typeof session === 'object' ? session : {};
             if (sessionSnapshot?.accessToken) {
                 accessToken = sessionSnapshot.accessToken;
+                const activeWorkspaceId = getWorkspaceIdFromAccessToken(sessionSnapshot.accessToken);
+                if (activeWorkspaceId && isTeamishPlanType(getWorkspacePlanTypeFromAccessToken(sessionSnapshot.accessToken))) {
+                    capturedWorkspaceIds.add(activeWorkspaceId);
+                }
             }
             return sessionSnapshot;
         } catch (error) {
+            const bootstrapSession = getClientBootstrapSession();
+            if (bootstrapSession) {
+                sessionSnapshot = bootstrapSession;
+                if (sessionSnapshot?.accessToken) {
+                    accessToken = sessionSnapshot.accessToken;
+                    const activeWorkspaceId = getWorkspaceIdFromAccessToken(sessionSnapshot.accessToken);
+                    if (activeWorkspaceId && isTeamishPlanType(getWorkspacePlanTypeFromAccessToken(sessionSnapshot.accessToken))) {
+                        capturedWorkspaceIds.add(activeWorkspaceId);
+                    }
+                }
+                return sessionSnapshot;
+            }
             if (notifyOnError) {
                 notify('error', t('alertNoAccessToken'));
             }
@@ -1325,6 +2005,404 @@
             return fallback;
         }
         return null;
+    }
+
+    const getWorkspaceContextFromSession = (session) => (
+        deriveWorkspaceContextFromSession(session, accessToken)
+    );
+
+    const clearDialogWorkspaceOrigin = () => {
+        dialogWorkspaceOrigin = null;
+        dialogWorkspaceOriginPromise = null;
+        dialogWorkspaceRestorePromise = null;
+        dialogWorkspaceRestoreState = createDialogWorkspaceRestoreState();
+    };
+
+    const getWorkspaceModeFromContext = (context) => (
+        isTeamishPlanType(context?.planType) ? 'team' : 'personal'
+    );
+
+    const isMatchingWorkspaceContext = (mode, workspaceId, context) => {
+        const normalizedMode = mode === 'team' ? 'team' : 'personal';
+        const activePlanType = normalizeStringValue(context?.planType, true);
+        const activeWorkspaceId = normalizeWorkspaceApiId(context?.workspaceId);
+        if (normalizedMode === 'team') {
+            return Boolean(
+                workspaceId &&
+                activeWorkspaceId === normalizeWorkspaceApiId(workspaceId) &&
+                isTeamishPlanType(activePlanType)
+            );
+        }
+        if (isTeamishPlanType(activePlanType)) {
+            return false;
+        }
+        if (!workspaceId) {
+            return true;
+        }
+        return activeWorkspaceId === normalizeWorkspaceApiId(workspaceId);
+    };
+
+    const resolveDialogWorkspaceOrigin = async (session) => {
+        const safeSession = session && typeof session === 'object'
+            ? session
+            : { accessToken };
+        const workspaceContext = getWorkspaceContextFromSession(safeSession);
+        const mode = getWorkspaceModeFromContext(workspaceContext);
+        const workspaceId = mode === 'team'
+            ? normalizeWorkspaceApiId(workspaceContext.workspaceId)
+            : normalizeWorkspaceApiId(await resolvePersonalAccountId(safeSession));
+        if (mode === 'team' && !workspaceId) {
+            return null;
+        }
+        return {
+            mode,
+            workspaceId: workspaceId || ''
+        };
+    };
+
+    async function ensureDialogWorkspaceOrigin() {
+        if (dialogWorkspaceOrigin?.mode) {
+            if (
+                dialogWorkspaceRestoreState.phase === 'origin-loading' ||
+                dialogWorkspaceRestoreState.phase === 'origin-missing'
+            ) {
+                setDialogWorkspaceRestoreState({
+                    phase: 'origin-ready',
+                    detail: '',
+                    errorMessage: ''
+                });
+            }
+            return dialogWorkspaceOrigin;
+        }
+        if (dialogWorkspaceOriginPromise) {
+            return dialogWorkspaceOriginPromise;
+        }
+        const pending = (async () => {
+            const session = await fetchSessionSnapshot({ notifyOnError: false });
+            const origin = await resolveDialogWorkspaceOrigin(session);
+            if (origin?.mode) {
+                dialogWorkspaceOrigin = origin;
+                if (
+                    dialogWorkspaceRestoreState.phase === 'origin-loading' ||
+                    dialogWorkspaceRestoreState.phase === 'origin-missing'
+                ) {
+                    setDialogWorkspaceRestoreState({
+                        phase: 'origin-ready',
+                        detail: '',
+                        errorMessage: ''
+                    });
+                }
+            } else if (dialogWorkspaceRestoreState.phase === 'origin-loading') {
+                setDialogWorkspaceRestoreState({
+                    phase: 'origin-missing',
+                    detail: '',
+                    errorMessage: ''
+                });
+            }
+            return dialogWorkspaceOrigin;
+        })();
+        dialogWorkspaceOriginPromise = pending;
+        try {
+            return await pending;
+        } finally {
+            if (dialogWorkspaceOriginPromise === pending) {
+                dialogWorkspaceOriginPromise = null;
+            }
+        }
+    }
+
+    async function restoreDialogWorkspaceOrigin(options = {}) {
+        if (dialogWorkspaceRestorePromise) {
+            return dialogWorkspaceRestorePromise;
+        }
+        const pending = (async () => {
+            const origin = await ensureDialogWorkspaceOrigin();
+            if (!origin?.mode) {
+                setDialogWorkspaceRestoreState({
+                    phase: 'origin-missing',
+                    detail: '',
+                    errorMessage: ''
+                });
+                return false;
+            }
+            const currentSession = await fetchSessionSnapshot({ notifyOnError: false, force: true });
+            const currentContext = getWorkspaceContextFromSession(currentSession || {});
+            if (isMatchingWorkspaceContext(origin.mode, origin.workspaceId, currentContext)) {
+                setDialogWorkspaceRestoreState({
+                    phase: 'origin-ready',
+                    detail: '',
+                    errorMessage: ''
+                });
+                return true;
+            }
+            setDialogWorkspaceRestoreState({
+                phase: 'restoring',
+                detail: t('workspaceRestoreRunning'),
+                errorMessage: ''
+            });
+            try {
+                await ensureWorkspaceSession(origin.mode, origin.workspaceId, {
+                    notifyOnError: false,
+                    onStatus: (status) => {
+                        if (status?.stage === 'switching') {
+                            setDialogWorkspaceRestoreState({
+                                phase: 'restoring',
+                                detail: t('statusSwitchingWorkspace', getWorkspaceSwitchLabel(status.mode, status.targetWorkspaceId)),
+                                errorMessage: ''
+                            });
+                        } else {
+                            setDialogWorkspaceRestoreState({
+                                phase: 'restoring',
+                                detail: t('statusRefreshingSession'),
+                                errorMessage: ''
+                            });
+                        }
+                        if (typeof options.onStatus === 'function') {
+                            options.onStatus(status);
+                        }
+                    }
+                });
+                setDialogWorkspaceRestoreState({
+                    phase: 'restored',
+                    detail: '',
+                    errorMessage: ''
+                });
+                return true;
+            } catch (error) {
+                console.warn('[CGUE Plus] Workspace auto-restore failed:', error);
+                setDialogWorkspaceRestoreState({
+                    phase: 'error',
+                    detail: '',
+                    errorMessage: error?.message || String(error)
+                });
+                return false;
+            }
+        })();
+        dialogWorkspaceRestorePromise = pending;
+        try {
+            return await pending;
+        } finally {
+            if (dialogWorkspaceRestorePromise === pending) {
+                dialogWorkspaceRestorePromise = null;
+            }
+        }
+    }
+
+    const getWorkspaceSwitchLabel = (mode, workspaceId) => (
+        mode === 'team'
+            ? `${t('teamTitle')} ${normalizeWorkspaceApiId(workspaceId) || normalizeStringValue(workspaceId, false) || '?'}`.trim()
+            : t('personalTitle')
+    );
+
+    const getCookieRootDomain = () => {
+        const hostname = normalizeStringValue(window.location.hostname || '', true);
+        if (!hostname) return '';
+        const segments = hostname.split('.').filter(Boolean);
+        if (segments.length < 2) return hostname;
+        return segments.slice(-2).join('.');
+    };
+
+    const writeCookieVariants = (name, value, extraAttrs = []) => {
+        const attrs = ['path=/', 'SameSite=Lax'];
+        if (location.protocol === 'https:') {
+            attrs.push('Secure');
+        }
+        const serializedValue = value == null ? '' : String(value);
+        document.cookie = [`${name}=${serializedValue}`, ...attrs, ...extraAttrs].join('; ');
+        const rootDomain = getCookieRootDomain();
+        if (rootDomain) {
+            document.cookie = [`${name}=${serializedValue}`, ...attrs, `domain=${rootDomain}`, ...extraAttrs].join('; ');
+        }
+    };
+
+    const setWorkspaceSelectionCookie = (mode, workspaceId) => {
+        const normalizedMode = mode === 'team' ? 'team' : 'personal';
+        const cookieValue = normalizedMode === 'team'
+            ? normalizeWorkspaceApiId(workspaceId)
+            : 'personal';
+        if (!cookieValue) return;
+        writeCookieVariants('_account', encodeURIComponent(cookieValue));
+    };
+
+    const exchangeWorkspaceSession = async (workspaceId) => {
+        const targetWorkspaceId = normalizeWorkspaceApiId(workspaceId);
+        if (!targetWorkspaceId) {
+            throw new Error(t('alertNoWorkspace'));
+        }
+        const params = new URLSearchParams({
+            exchange_workspace_token: 'true',
+            workspace_id: targetWorkspaceId,
+            reason: 'setCurrentAccount'
+        });
+        const response = await fetch(`/api/auth/session?${params.toString()}`, {
+            credentials: 'same-origin',
+            cache: 'no-store'
+        });
+        const text = await response.text();
+        if (!response.ok) {
+            throw new Error(text || t('errWorkspaceSwitchRequest', response.status));
+        }
+        const session = safeJsonParse(text, null);
+        if (!session || typeof session !== 'object') {
+            throw new Error(t('errWorkspaceSwitchFailed', targetWorkspaceId));
+        }
+        invalidateSessionCaches();
+        sessionSnapshot = session;
+        if (session?.accessToken) {
+            accessToken = session.accessToken;
+        }
+        return sessionSnapshot;
+    };
+
+    const refreshAccountContextPage = async () => {
+        const tryIframeRefresh = async () => {
+            if (!document.body && !document.documentElement) return false;
+            return new Promise((resolve) => {
+                const iframe = document.createElement('iframe');
+                let settled = false;
+                const cleanup = () => {
+                    if (iframe.parentNode) {
+                        iframe.parentNode.removeChild(iframe);
+                    }
+                };
+                const finish = (ok) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeoutId);
+                    cleanup();
+                    resolve(ok);
+                };
+                const timeoutId = setTimeout(() => finish(false), 10000);
+                iframe.setAttribute('aria-hidden', 'true');
+                iframe.tabIndex = -1;
+                iframe.style.cssText = [
+                    'position:fixed',
+                    'width:0',
+                    'height:0',
+                    'border:0',
+                    'opacity:0',
+                    'pointer-events:none'
+                ].join(';');
+                iframe.onload = () => setTimeout(() => finish(true), 300);
+                iframe.onerror = () => finish(false);
+                iframe.src = `/?refresh_account=true&cgue_refresh_frame=${Date.now()}`;
+                (document.body || document.documentElement).appendChild(iframe);
+            });
+        };
+
+        try {
+            const iframeOk = await tryIframeRefresh();
+            if (iframeOk) return true;
+        } catch (_) {}
+
+        try {
+            await fetch('/?refresh_account=true', {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            return true;
+        } catch (_) {
+            return false;
+        }
+    };
+
+    const isExpectedWorkspaceContext = (mode, targetWorkspaceId, context) => {
+        const normalizedMode = mode === 'team' ? 'team' : 'personal';
+        const activeWorkspaceId = normalizeWorkspaceApiId(context?.workspaceId);
+        const activePlanType = normalizeStringValue(context?.planType, true);
+        if (activeWorkspaceId !== normalizeWorkspaceApiId(targetWorkspaceId)) {
+            return false;
+        }
+        return normalizedMode === 'team'
+            ? isTeamishPlanType(activePlanType)
+            : !isTeamishPlanType(activePlanType);
+    };
+
+    async function ensureWorkspaceSession(mode, workspaceId, options = {}) {
+        const normalizedMode = mode === 'team' ? 'team' : 'personal';
+        const { notifyOnError = true, onStatus = null } = options;
+        const currentSession = await fetchSessionSnapshot({ notifyOnError, force: options.force === true });
+        const currentContext = getWorkspaceContextFromSession(currentSession || {});
+        const targetWorkspaceId = normalizedMode === 'team'
+            ? normalizeWorkspaceApiId(workspaceId)
+            : normalizeWorkspaceApiId(workspaceId) || normalizeWorkspaceApiId(await resolvePersonalAccountId(currentSession || {}));
+        if (!targetWorkspaceId) {
+            throw new Error(normalizedMode === 'team' ? t('alertNoWorkspace') : t('alertNoPersonalWorkspace'));
+        }
+
+        if (isExpectedWorkspaceContext(normalizedMode, targetWorkspaceId, currentContext)) {
+            if (normalizedMode === 'team') {
+                capturedWorkspaceIds.add(targetWorkspaceId);
+            }
+            return {
+                session: currentSession || {},
+                targetWorkspaceId,
+                switched: false
+            };
+        }
+
+        if (typeof onStatus === 'function') {
+            onStatus({
+                stage: 'switching',
+                mode: normalizedMode,
+                targetWorkspaceId
+            });
+        }
+        setWorkspaceSelectionCookie(normalizedMode, targetWorkspaceId);
+        const exchangedSession = await exchangeWorkspaceSession(targetWorkspaceId);
+        const exchangedContext = getWorkspaceContextFromSession(exchangedSession || {});
+
+        let finalSession = exchangedSession || {};
+        let finalContext = exchangedContext;
+
+        if (typeof onStatus === 'function') {
+            onStatus({
+                stage: 'refreshing',
+                mode: normalizedMode,
+                targetWorkspaceId
+            });
+        }
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await refreshAccountContextPage();
+            const refreshedSession = await fetchSessionSnapshot({ notifyOnError: false, force: true });
+            if (refreshedSession && typeof refreshedSession === 'object') {
+                const refreshedContext = getWorkspaceContextFromSession(refreshedSession);
+                if (isExpectedWorkspaceContext(normalizedMode, targetWorkspaceId, refreshedContext)) {
+                    finalSession = refreshedSession;
+                    finalContext = refreshedContext;
+                    break;
+                }
+            }
+            if (attempt < 4) {
+                await sleep(250 * (attempt + 1));
+            }
+        }
+
+        // The exchange response already carries the new token; if the SPA snapshot lags behind,
+        // keep using the exchanged session instead of failing the export flow.
+        if (!isExpectedWorkspaceContext(normalizedMode, targetWorkspaceId, finalContext) &&
+            isExpectedWorkspaceContext(normalizedMode, targetWorkspaceId, exchangedContext)) {
+            finalSession = exchangedSession || {};
+            finalContext = exchangedContext;
+        }
+
+        if (finalSession?.accessToken) {
+            sessionSnapshot = finalSession;
+            accessToken = finalSession.accessToken;
+        }
+
+        if (!isExpectedWorkspaceContext(normalizedMode, targetWorkspaceId, finalContext)) {
+            throw new Error(t('errWorkspaceSwitchFailed', getWorkspaceSwitchLabel(normalizedMode, targetWorkspaceId)));
+        }
+        if (normalizedMode === 'team') {
+            capturedWorkspaceIds.add(targetWorkspaceId);
+        }
+        return {
+            session: finalSession,
+            targetWorkspaceId,
+            switched: true
+        };
     }
 
     const getAutoDriveTasksStorageKey = (accountKey) => `${AUTO_DRIVE_TASKS_STORAGE_PREFIX}${accountKey}`;
@@ -1369,6 +2447,7 @@
 
     const normalizeAutoDriveTask = (input = {}) => {
         const form = createDefaultAutoTaskForm(input);
+        const legacyShouldPause = input?.enabled === false;
         const mode = form.mode;
         const workspaceId = mode === 'team' ? normalizeStringValue(form.workspaceId, false) : '';
         const id = buildAutoDriveTaskId(mode, workspaceId);
@@ -1386,22 +2465,17 @@
             intervalMinutes: form.intervalMinutes,
             includeRootActive: form.includeRootActive !== false,
             includeRootArchived: form.includeRootArchived !== false,
-            enabled: form.enabled !== false,
-            runOnStartup: form.runOnStartup !== false,
             nextRunAt,
             pausedNextRunAt,
             lastRunAt: Number.isFinite(lastRunAt) && lastRunAt > 0 ? lastRunAt : null,
             lastSuccessAt: Number.isFinite(lastSuccessAt) && lastSuccessAt > 0 ? lastSuccessAt : null,
             lastError: normalizeStringValue(input.lastError, false),
             consecutiveFailures: Math.max(0, Math.floor(Number(input.consecutiveFailures) || 0)),
-            paused: input.paused === true,
+            paused: input.paused === true || legacyShouldPause,
             createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : Date.now(),
             updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : Date.now()
         };
-        if (!task.enabled) {
-            task.nextRunAt = null;
-            task.pausedNextRunAt = null;
-        } else if (task.paused === true) {
+        if (task.paused === true) {
             task.pausedNextRunAt = task.pausedNextRunAt != null ? task.pausedNextRunAt : task.nextRunAt;
             task.nextRunAt = null;
         } else {
@@ -1677,6 +2751,35 @@
             collapsedSummary,
             collapsedDetail,
             collapsedDividerAfterLine: rootLine
+        };
+    };
+
+    const buildAutoDriveCompletionNotification = (task, syncResult, titleText) => {
+        const notification = buildFinalExportNotification(
+            {
+                localOk: false,
+                driveOk: true,
+                localError: null,
+                driveError: null
+            },
+            {
+                local: false,
+                drive: true
+            },
+            syncResult?.exportStats || null,
+            {
+                mode: syncResult?.mode || task?.mode,
+                workspaceId: syncResult?.workspaceId || task?.workspaceId || '',
+                includeRootActive: task?.includeRootActive !== false,
+                includeRootArchived: task?.includeRootArchived !== false,
+                incrementalStats: syncResult?.incrementalStats || null
+            }
+        );
+        const updatedCount = Math.max(0, Number(syncResult?.exportStats?.driveUpdatedCount) || 0);
+        return {
+            ...notification,
+            message: normalizeToastMessage(titleText) || t('autoSyncTaskCompleted', getAutoDriveTaskLabel(task)),
+            detail: t('toastDriveUpdatedCount', updatedCount)
         };
     };
 
@@ -2089,31 +3192,6 @@
         const existingId = await findDriveFolderId(folderName, parentId);
         if (existingId) return existingId;
         return createDriveFolder(folderName, parentId);
-    };
-
-    const renameDriveFile = async (fileId, nextName) => {
-        if (!fileId || !nextName) {
-            throw new Error('Drive rename target is missing.');
-        }
-        const token = await ensureDriveAccessToken();
-        const response = await performDriveRequest({
-            method: 'PATCH',
-            url: `${DRIVE_FILES_ENDPOINT}/${encodeURIComponent(String(fileId))}?fields=id,name`,
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json; charset=UTF-8'
-            },
-            body: JSON.stringify({ name: nextName })
-        });
-        const text = response.responseText || '';
-        if (response.status >= 200 && response.status < 300) {
-            try {
-                return text ? JSON.parse(text) : {};
-            } catch (error) {
-                throw new Error(`Drive rename parse failed: ${error?.message || String(error)}`);
-            }
-        }
-        throw new Error(`Drive rename HTTP ${response.status}: ${text || '[empty response]'}`);
     };
 
     const listDriveFilesByConversationId = async (folderId, conversationId) => {
@@ -2529,7 +3607,10 @@
 
     async function ensureAccessToken(options = {}) {
         const { notifyOnError = true, force = false } = options;
-        if (accessToken) return accessToken;
+        if (force) {
+            accessToken = null;
+        }
+        if (accessToken && !force) return accessToken;
         const session = await fetchSessionSnapshot({ notifyOnError, force });
         if (session?.accessToken) {
             accessToken = session.accessToken;
@@ -2738,19 +3819,86 @@
             'Authorization': `Bearer ${accessToken}`,
             'oai-device-id': deviceId
         };
-        if (workspaceId) {
-            headers['ChatGPT-Account-Id'] = workspaceId;
+        const normalizedWorkspaceId = normalizeWorkspaceApiId(workspaceId);
+        if (normalizedWorkspaceId) {
+            headers['ChatGPT-Account-Id'] = normalizedWorkspaceId;
         }
         return headers;
     }
 
-    async function getProjects(workspaceId) {
-        if (!workspaceId) return [];
-        const headers = buildHeaders(workspaceId);
-        const r = await fetch('/backend-api/gizmos/snorlax/sidebar', { headers });
-        if (!r.ok) {
-            throw new Error(t('errGetProjects', r.status));
+    const isAuthRefreshStatus = (status) => status === 401 || status === 403;
+    const isRetryableBackendStatus = (status) => status === 429 || status >= 500;
+
+    async function refreshChatSessionForRetry() {
+        await refreshAccountContextPage();
+        return ensureAccessToken({ notifyOnError: false, force: true });
+    }
+
+    async function fetchBackendApiResponse(url, workspaceId, options = {}) {
+        const {
+            init = {},
+            statusError = (status) => new Error(`Backend request failed (${status})`),
+            retries = 0,
+            authRetries = BACKEND_AUTH_RETRY_MAX,
+            retryBaseDelayMs = 400,
+            retryJitterMs = 200,
+            authRetryDelayMs = 250
+        } = options;
+        let transientAttempt = 0;
+        let authAttempt = 0;
+
+        while (true) {
+            try {
+                const response = await fetch(url, {
+                    cache: 'no-store',
+                    ...init,
+                    headers: {
+                        ...buildHeaders(workspaceId),
+                        ...(init.headers || {})
+                    }
+                });
+                if (response.ok) {
+                    return response;
+                }
+                if (isAuthRefreshStatus(response.status) && authAttempt < authRetries) {
+                    authAttempt += 1;
+                    console.warn(`[CGUE Plus] Immediate auth retry ${authAttempt}/${authRetries}: ${url} (${response.status})`);
+                    const refreshedToken = await refreshChatSessionForRetry();
+                    if (!refreshedToken) {
+                        throw new Error(t('alertNoAccessToken'));
+                    }
+                    if (authRetryDelayMs > 0) {
+                        await sleep(authRetryDelayMs);
+                    }
+                    continue;
+                }
+                if (isRetryableBackendStatus(response.status) && transientAttempt < retries) {
+                    transientAttempt += 1;
+                    console.warn(`[CGUE Plus] Immediate backend retry ${transientAttempt}/${retries}: ${url} (${response.status})`);
+                    const delay = retryBaseDelayMs * transientAttempt +
+                        (retryJitterMs > 0 ? Math.floor(Math.random() * retryJitterMs) : 0);
+                    await sleep(delay);
+                    continue;
+                }
+                throw statusError(response.status);
+            } catch (error) {
+                if (!isConversationNetworkError(error) || transientAttempt >= retries) {
+                    throw error;
+                }
+                transientAttempt += 1;
+                console.warn(`[CGUE Plus] Immediate network retry ${transientAttempt}/${retries}: ${url}`);
+                const delay = retryBaseDelayMs * transientAttempt +
+                    (retryJitterMs > 0 ? Math.floor(Math.random() * retryJitterMs) : 0);
+                await sleep(delay);
+            }
         }
+    }
+
+    async function getProjects(workspaceId) {
+        const r = await fetchBackendApiResponse('/backend-api/gizmos/snorlax/sidebar', workspaceId, {
+            statusError: (status) => new Error(t('errGetProjects', status)),
+            retries: BACKEND_LIST_RETRY_MAX
+        });
         const data = await r.json();
         const projects = [];
         data.items?.forEach((item) => {
@@ -2763,16 +3911,29 @@
 
     async function collectIds(btn, workspaceId, gizmoId, options = {}) {
         const all = new Set();
-        const headers = buildHeaders(workspaceId);
         const metaStore = options?.metaStore && typeof options.metaStore === 'object'
             ? options.metaStore
+            : null;
+        const onProgress = typeof options?.onProgress === 'function'
+            ? options.onProgress
             : null;
 
         if (gizmoId) {
             let cursor = '0';
+            let page = 0;
             do {
-                const r = await fetch(`/backend-api/gizmos/${gizmoId}/conversations?cursor=${cursor}`, { headers });
-                if (!r.ok) throw new Error(t('errListProject', r.status));
+                page += 1;
+                if (onProgress) {
+                    onProgress({ stage: 'project', page, gizmoId });
+                }
+                const r = await fetchBackendApiResponse(
+                    `/backend-api/gizmos/${gizmoId}/conversations?cursor=${cursor}`,
+                    workspaceId,
+                    {
+                        statusError: (status) => new Error(t('errListProject', status)),
+                        retries: BACKEND_LIST_RETRY_MAX
+                    }
+                );
                 const j = await r.json();
                 j.items?.forEach((it) => {
                     all.add(it.id);
@@ -2794,11 +3955,21 @@
                 let hasMore = true;
                 let page = 0;
                 do {
+                    page += 1;
                     if (btn) {
-                        btn.textContent = t('statusFetchingRoot', getRootLabelFromArchived(isArchived), ++page);
+                        btn.textContent = t('statusFetchingRoot', getRootLabelFromArchived(isArchived), page);
                     }
-                    const r = await fetch(`/backend-api/conversations?offset=${offset}&limit=${PAGE_LIMIT}&order=updated${isArchived ? '&is_archived=true' : ''}`, { headers });
-                    if (!r.ok) throw new Error(t('errListRoot', r.status));
+                    if (onProgress) {
+                        onProgress({ stage: 'root', isArchived, page });
+                    }
+                    const r = await fetchBackendApiResponse(
+                        `/backend-api/conversations?offset=${offset}&limit=${PAGE_LIMIT}&order=updated${isArchived ? '&is_archived=true' : ''}`,
+                        workspaceId,
+                        {
+                            statusError: (status) => new Error(t('errListRoot', status)),
+                            retries: BACKEND_LIST_RETRY_MAX
+                        }
+                    );
                     const j = await r.json();
                     if (j.items && j.items.length > 0) {
                         j.items.forEach((it) => {
@@ -2830,7 +4001,6 @@
     };
 
     async function getConversation(id, workspaceId, options = {}) {
-        const headers = buildHeaders(workspaceId);
         const retries = Number.isFinite(options.retries)
             ? Math.max(0, Math.floor(options.retries))
             : 2;
@@ -2840,40 +4010,15 @@
         const retryJitterMs = Number.isFinite(options.retryJitterMs)
             ? Math.max(0, Number(options.retryJitterMs))
             : 200;
-        let lastError = null;
-        for (let attempt = 0; attempt <= retries; attempt++) {
-            try {
-                const r = await fetch(`/backend-api/conversation/${id}`, {
-                    headers,
-                    cache: 'no-store'
-                });
-                if (!r.ok) {
-                    const retryableStatus = r.status === 429 || r.status >= 500;
-                    if (retryableStatus && attempt < retries) {
-                        const delay = retryBaseDelayMs * (attempt + 1) + (retryJitterMs > 0 ? Math.floor(Math.random() * retryJitterMs) : 0);
-                        await sleep(delay);
-                        continue;
-                    }
-                    throw new Error(t('errGetConversation', r.status));
-                }
-                const j = await r.json();
-                j.__fetched_at = new Date().toISOString();
-                return j;
-            } catch (error) {
-                lastError = error;
-                const message = error?.message || String(error);
-                const isNetworkError = isConversationNetworkError(error);
-                if (!isNetworkError || attempt >= retries) {
-                    throw error;
-                }
-                const delay = retryBaseDelayMs * (attempt + 1) + (retryJitterMs > 0 ? Math.floor(Math.random() * retryJitterMs) : 0);
-                if (retries > 0) {
-                    console.warn(`[CGUE Plus] getConversation retry ${attempt + 1}/${retries} for ${id}: ${message}`);
-                }
-                await sleep(delay);
-            }
-        }
-        throw lastError || new Error(t('errGetConversation', 'unknown'));
+        const r = await fetchBackendApiResponse(`/backend-api/conversation/${id}`, workspaceId, {
+            statusError: (status) => new Error(t('errGetConversation', status)),
+            retries,
+            retryBaseDelayMs,
+            retryJitterMs
+        });
+        const j = await r.json();
+        j.__fetched_at = new Date().toISOString();
+        return j;
     }
 
     async function runCompensationRetry(item, workspaceId, options = {}) {
@@ -2964,7 +4109,6 @@
     }
 
     async function listRootConversations(workspaceId, isArchived, onProgress) {
-        const headers = buildHeaders(workspaceId);
         let offset = 0;
         let page = 0;
         const items = [];
@@ -2974,8 +4118,14 @@
             if (onProgress) {
                 onProgress({ stage: 'root', isArchived, page });
             }
-            const r = await fetch(`/backend-api/conversations?offset=${offset}&limit=${PAGE_LIMIT}&order=updated${isArchived ? '&is_archived=true' : ''}`, { headers });
-            if (!r.ok) throw new Error(t('errListRoot', r.status));
+            const r = await fetchBackendApiResponse(
+                `/backend-api/conversations?offset=${offset}&limit=${PAGE_LIMIT}&order=updated${isArchived ? '&is_archived=true' : ''}`,
+                workspaceId,
+                {
+                    statusError: (status) => new Error(t('errListRoot', status)),
+                    retries: BACKEND_LIST_RETRY_MAX
+                }
+            );
             const j = await r.json();
             const chunk = Array.isArray(j.items) ? j.items : [];
             items.push(...chunk);
@@ -2989,7 +4139,6 @@
     }
 
     async function listProjectConversations(workspaceId, projectId, projectTitle, onProgress) {
-        const headers = buildHeaders(workspaceId);
         let cursor = '0';
         let page = 0;
         const items = [];
@@ -2998,8 +4147,14 @@
             if (onProgress) {
                 onProgress({ stage: 'project', projectTitle, page });
             }
-            const r = await fetch(`/backend-api/gizmos/${projectId}/conversations?cursor=${cursor}`, { headers });
-            if (!r.ok) throw new Error(t('errListProject', r.status));
+            const r = await fetchBackendApiResponse(
+                `/backend-api/gizmos/${projectId}/conversations?cursor=${cursor}`,
+                workspaceId,
+                {
+                    statusError: (status) => new Error(t('errListProject', status)),
+                    retries: BACKEND_LIST_RETRY_MAX
+                }
+            );
             const j = await r.json();
             const chunk = Array.isArray(j.items) ? j.items : [];
             items.push(...chunk);
@@ -3044,11 +4199,27 @@
         };
 
         const rootActiveGroup = ensureGroup('root-active', t('groupRootActive'));
-        const rootActiveItems = await listRootConversations(workspaceId, false, onProgress);
+        const rootActiveItems = await listRootConversations(workspaceId, false, (info) => {
+            if (onProgress) {
+                onProgress({
+                    ...info,
+                    rootIndex: 1,
+                    rootTotal: 2
+                });
+            }
+        });
         rootActiveItems.forEach((item) => addItem(rootActiveGroup, item, {}));
 
         const rootArchivedGroup = ensureGroup('root-archived', t('groupRootArchived'));
-        const rootArchivedItems = await listRootConversations(workspaceId, true, onProgress);
+        const rootArchivedItems = await listRootConversations(workspaceId, true, (info) => {
+            if (onProgress) {
+                onProgress({
+                    ...info,
+                    rootIndex: 2,
+                    rootTotal: 2
+                });
+            }
+        });
         rootArchivedItems.forEach((item) => addItem(rootArchivedGroup, item, {}));
 
         if (onProgress) {
@@ -3056,12 +4227,29 @@
         }
 
         const projects = await getProjects(workspaceId);
-        for (const project of projects) {
+        const projectTotal = projects.length;
+        for (let projectOffset = 0; projectOffset < projects.length; projectOffset++) {
+            const project = projects[projectOffset];
+            const projectIndex = projectOffset + 1;
             const group = ensureGroup(`project:${project.id}`, t('groupProject', project.title), project.id, project.title);
             if (onProgress) {
-                onProgress({ stage: 'project-header', projectTitle: project.title });
+                onProgress({
+                    stage: 'project-header',
+                    projectTitle: project.title,
+                    projectIndex,
+                    projectTotal
+                });
             }
-            const projectItems = await listProjectConversations(workspaceId, project.id, project.title, onProgress);
+            const projectItems = await listProjectConversations(workspaceId, project.id, project.title, (info) => {
+                if (onProgress) {
+                    onProgress({
+                        ...info,
+                        projectTitle: project.title,
+                        projectIndex,
+                        projectTotal
+                    });
+                }
+            });
             projectItems.forEach((item) => addItem(group, item, { projectId: project.id, projectTitle: project.title }));
         }
 
@@ -3073,14 +4261,41 @@
     }
 
     function detectAllWorkspaceIds() {
-        const foundIds = new Set(capturedWorkspaceIds);
+        const knownPersonalIds = new Set(getDocumentPersonalAccountIds());
+        const cachedPersonalId = normalizeWorkspaceApiId(personalAccountIdCache);
+        if (cachedPersonalId) {
+            knownPersonalIds.add(cachedPersonalId);
+        }
+        const sessionContext = getWorkspaceContextFromSession(sessionSnapshot || {});
+        if (sessionContext.workspaceId && !isTeamishPlanType(sessionContext.planType)) {
+            knownPersonalIds.add(sessionContext.workspaceId);
+        }
+        const bootstrapContext = deriveWorkspaceContextFromSession(getClientBootstrapSession(), accessToken);
+        if (bootstrapContext.workspaceId && !isTeamishPlanType(bootstrapContext.planType)) {
+            knownPersonalIds.add(bootstrapContext.workspaceId);
+        }
+
+        const foundIds = new Set(
+            mergeWorkspaceIds(
+                capturedWorkspaceIds,
+                detectedTeamWorkspaceIdsLoaded ? detectedTeamWorkspaceIdsCache : []
+            ).filter((workspaceId) => !knownPersonalIds.has(workspaceId))
+        );
+
+        [sessionContext, bootstrapContext].forEach((context) => {
+            if (
+                context.workspaceId &&
+                isTeamishPlanType(context.planType) &&
+                !knownPersonalIds.has(context.workspaceId)
+            ) {
+                foundIds.add(context.workspaceId);
+            }
+        });
 
         try {
-            const data = safeJsonParse(document.getElementById('__NEXT_DATA__')?.textContent || '{}', {}) || {};
-            readAccountsPayloadItems(data).forEach((item) => {
-                if (item?.id && !item.isPersonal) {
-                    foundIds.add(item.id);
-                }
+            const data = getNextDataPayload();
+            extractTeamWorkspaceIdsFromAccountsPayload(data).forEach((workspaceId) => {
+                foundIds.add(workspaceId);
             });
         } catch (_) {}
 
@@ -3091,17 +4306,17 @@
                 const value = localStorage.getItem(key);
                 if (!value) continue;
                 const cleaned = value.replace(/"/g, '');
-                const wsMatch = cleaned.match(/ws-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i);
-                if (wsMatch) {
-                    foundIds.add(wsMatch[0]);
-                } else if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(cleaned)) {
-                    foundIds.add(cleaned);
+                const extractedId = extractWorkspaceOrAccountId(cleaned);
+                const workspaceId = normalizeWorkspaceApiId(extractedId);
+                if (workspaceId && !knownPersonalIds.has(workspaceId)) {
+                    foundIds.add(workspaceId);
                 }
             }
         } catch (_) {}
 
-        console.log('🔍 Workspace IDs detected:', Array.from(foundIds));
-        return Array.from(foundIds);
+        const detectedIds = Array.from(foundIds).filter((workspaceId) => !knownPersonalIds.has(workspaceId));
+        console.log('🔍 Workspace IDs detected:', detectedIds);
+        return detectedIds;
     }
 
     function getExportButton() {
@@ -3282,41 +4497,57 @@
         const btn = getExportButton();
         if (btn) btn.disabled = true;
         state.isExporting = true;
-
-        if (!await ensureAccessToken()) {
-            scheduleReset(t('statusError'));
-            return;
-        }
-
-        const accountContext = await ensureCurrentAccountContextForExport();
-        const accountKey = accountContext?.accountKey || '';
         let releaseLock = null;
-        if (accountKey) {
-            releaseLock = await acquireAccountExecutionLock(
-                accountKey,
-                'manual-export-all',
-                mode === 'team' ? (workspaceId || 'team') : 'personal'
-            );
-            if (!releaseLock) {
-                notify('warning', t('alertExportBusy'));
-                scheduleReset(t('statusError'));
+        let accountKey = '';
+        let finalStatus = t('statusDone');
+        const baselineSuccessIds = new Set();
+        let incrementalEnabled = false;
+        let incrementalStats = null;
+        let prevMeta = {};
+        let currMeta = null;
+        try {
+            await ensureWorkspaceSession(mode, workspaceId, {
+                notifyOnError: false,
+                onStatus: ({ stage, mode: nextMode, targetWorkspaceId }) => {
+                    if (stage === 'switching') {
+                        setButtonStatus(t('statusSwitchingWorkspace', getWorkspaceSwitchLabel(nextMode, targetWorkspaceId)));
+                        return;
+                    }
+                    setButtonStatus(t('statusRefreshingSession'));
+                }
+            });
+
+            if (!await ensureAccessToken({ notifyOnError: false })) {
+                notify('error', t('alertNoAccessToken'));
+                finalStatus = t('statusError');
                 return;
             }
-        }
 
-        const targets = backupTargets || state.backupTargets;
-        const incrementalEnabled = targets.drive === true && Boolean(accountKey);
-        const baselineSuccessIds = new Set();
-        const incrementalStats = incrementalEnabled
-            ? { totalListed: 0, incrementalKept: 0, skipped: 0 }
-            : null;
-        const prevMeta = incrementalEnabled
-            ? loadIncrementalUpdateMap(accountKey, mode, workspaceId)
-            : {};
-        const currMeta = incrementalEnabled ? {} : null;
+            const accountContext = await ensureCurrentAccountContextForExport();
+            accountKey = accountContext?.accountKey || '';
+            if (accountKey) {
+                releaseLock = await acquireAccountExecutionLock(
+                    accountKey,
+                    'manual-export-all',
+                    mode === 'team' ? (workspaceId || 'team') : 'personal'
+                );
+                if (!releaseLock) {
+                    notify('warning', t('alertExportBusy'));
+                    finalStatus = t('statusError');
+                    return;
+                }
+            }
 
-        let finalStatus = t('statusDone');
-        try {
+            const targets = backupTargets || state.backupTargets;
+            incrementalEnabled = targets.drive === true && Boolean(accountKey);
+            incrementalStats = incrementalEnabled
+                ? { totalListed: 0, incrementalKept: 0, skipped: 0 }
+                : null;
+            prevMeta = incrementalEnabled
+                ? loadIncrementalUpdateMap(accountKey, mode, workspaceId)
+                : {};
+            currMeta = incrementalEnabled ? {} : null;
+
             const zip = targets.local ? new JSZip() : null;
             const driveCache = new Map();
             const driveState = { error: null };
@@ -3546,30 +4777,42 @@
         const btn = getExportButton();
         if (btn) btn.disabled = true;
         state.isExporting = true;
-
-        if (!await ensureAccessToken()) {
-            scheduleReset(t('statusError'));
-            return;
-        }
-
-        const accountContext = await ensureCurrentAccountContextForExport();
-        const accountKey = accountContext?.accountKey || '';
         let releaseLock = null;
-        if (accountKey) {
-            releaseLock = await acquireAccountExecutionLock(
-                accountKey,
-                'manual-export-selected',
-                mode === 'team' ? (workspaceId || 'team') : 'personal'
-            );
-            if (!releaseLock) {
-                notify('warning', t('alertExportBusy'));
-                scheduleReset(t('statusError'));
-                return;
-            }
-        }
-
+        let accountKey = '';
         let finalStatus = t('statusDone');
         try {
+            await ensureWorkspaceSession(mode, workspaceId, {
+                notifyOnError: false,
+                onStatus: ({ stage, mode: nextMode, targetWorkspaceId }) => {
+                    if (stage === 'switching') {
+                        setButtonStatus(t('statusSwitchingWorkspace', getWorkspaceSwitchLabel(nextMode, targetWorkspaceId)));
+                        return;
+                    }
+                    setButtonStatus(t('statusRefreshingSession'));
+                }
+            });
+
+            if (!await ensureAccessToken({ notifyOnError: false })) {
+                notify('error', t('alertNoAccessToken'));
+                finalStatus = t('statusError');
+                return;
+            }
+
+            const accountContext = await ensureCurrentAccountContextForExport();
+            accountKey = accountContext?.accountKey || '';
+            if (accountKey) {
+                releaseLock = await acquireAccountExecutionLock(
+                    accountKey,
+                    'manual-export-selected',
+                    mode === 'team' ? (workspaceId || 'team') : 'personal'
+                );
+                if (!releaseLock) {
+                    notify('warning', t('alertExportBusy'));
+                    finalStatus = t('statusError');
+                    return;
+                }
+            }
+
             const targets = backupTargets || state.backupTargets;
             const zip = targets.local ? new JSZip() : null;
             const driveCache = new Map();
@@ -3753,7 +4996,14 @@
     }
 
     function refreshAutoDriveUi() {
-        const dialog = document.getElementById(BACKUP_DIALOG_ID);
+        const dialog = [
+            document.getElementById(DIALOG_ID),
+            document.getElementById(BACKUP_DIALOG_ID)
+        ].find((candidate) => (
+            candidate &&
+            typeof candidate.__refreshAutoDriveSection === 'function' &&
+            candidate.querySelector('#cgue-auto-drive-section')
+        ));
         if (dialog && typeof dialog.__refreshAutoDriveSection === 'function') {
             dialog.__refreshAutoDriveSection();
         }
@@ -3762,6 +5012,11 @@
     const getAutoDriveTaskLabel = (task) => (
         normalizeStringValue(task?.label, false) ||
         buildDefaultAutoTaskLabel(task?.mode, task?.workspaceId)
+    );
+
+    const isAutoDriveTaskUsingDefaultTeamLabel = (task) => (
+        task?.mode === 'team' &&
+        getAutoDriveTaskLabel(task) === buildDefaultAutoTaskLabel(task?.mode, task?.workspaceId)
     );
 
     const getAutoDriveIntervalMs = (task) => (
@@ -3789,6 +5044,35 @@
         if (!hasDriveCredentials()) return true;
         return /invalid_grant|invalid_client|unauthorized_client|refresh token|drive token/i.test(message);
     };
+
+    const getAutoDriveErrorStatus = (error) => {
+        const message = getAutoDriveErrorMessage(error);
+        const match = message.match(/\((\d{3})\)/);
+        return match ? Number(match[1]) : null;
+    };
+
+    const shouldImmediatelyRetryAutoDriveTask = (error) => {
+        if (!error || shouldPauseAutoDriveTask(error)) return false;
+        const status = getAutoDriveErrorStatus(error);
+        if (isAuthRefreshStatus(status) || isRetryableBackendStatus(status)) {
+            return true;
+        }
+        return isConversationNetworkError(error);
+    };
+
+    async function prepareImmediateAutoDriveRetry(task, error, retryIndex, maxRetries) {
+        setButtonStatus(t('statusImmediateRetry', getAutoDriveTaskLabel(task), retryIndex, maxRetries));
+        const status = getAutoDriveErrorStatus(error);
+        if (isAuthRefreshStatus(status)) {
+            const refreshedToken = await refreshChatSessionForRetry();
+            if (!refreshedToken) {
+                throw new Error(t('alertNoAccessToken'));
+            }
+            await sleep(250);
+            return;
+        }
+        await sleep(300 * retryIndex);
+    }
 
     const updateAutoDriveTaskState = (accountKey, taskId, patch) => {
         if (!accountKey || !taskId) return null;
@@ -3820,31 +5104,11 @@
             throw new Error(t('autoSyncAccountRequired'));
         }
         const rootFolderId = await ensureDriveFolder(DRIVE_ROOT_FOLDER_NAME);
-        let accountFolderId = await findDriveFolderId(accountContext.accountFolderName, rootFolderId);
-        if (!accountFolderId) {
-            const legacyFolderName = normalizeStringValue(accountContext.legacyAccountFolderName, false);
-            if (legacyFolderName && legacyFolderName !== accountContext.accountFolderName) {
-                const legacyFolderId = await findDriveFolderId(legacyFolderName, rootFolderId);
-                if (legacyFolderId) {
-                    try {
-                        await renameDriveFile(legacyFolderId, accountContext.accountFolderName);
-                    } catch (error) {
-                        console.warn(
-                            `[CGUE Plus] Drive account folder rename failed (${legacyFolderName} -> ${accountContext.accountFolderName}):`,
-                            formatDriveError(error)
-                        );
-                    }
-                    accountFolderId = legacyFolderId;
-                }
-            }
-        }
-        if (!accountFolderId) {
-            accountFolderId = await createDriveFolder(accountContext.accountFolderName, rootFolderId);
-        }
+        const accountFolderId = await ensureDriveFolder(accountContext.accountFolderName, rootFolderId);
         return ensureDriveFolder(buildAutoDriveTaskFolderName(task.mode, task.workspaceId), accountFolderId);
     }
 
-    function buildAutoDriveQueueItem(id, label, updatedAtValue, index, total) {
+    function buildAutoDriveQueueItem(id, label, updatedAtValue, index, total, statusText = '') {
         const updatedAtMs = normalizeTimestamp(updatedAtValue);
         return {
             id,
@@ -3853,7 +5117,8 @@
             updatedAtMs: updatedAtMs != null ? updatedAtMs : null,
             driveStatusLabel: shortLabel(label || id),
             driveStatusIndex: index,
-            driveStatusTotal: total
+            driveStatusTotal: total,
+            statusText: normalizeStringValue(statusText, false)
         };
     }
 
@@ -3861,7 +5126,9 @@
         const convData = await getConversation(queueItem.id, workspaceId);
         const fileInfo = buildConversationFileInfo(convData, queueItem.updatedAtMs);
         const payload = JSON.stringify(convData, null, 2);
-        if (queueItem.driveStatusLabel && queueItem.driveStatusIndex && queueItem.driveStatusTotal) {
+        if (queueItem.statusText) {
+            setButtonStatus(queueItem.statusText);
+        } else if (queueItem.driveStatusLabel && queueItem.driveStatusIndex && queueItem.driveStatusTotal) {
             setButtonStatus(formatDriveUploadStatus(queueItem.driveStatusLabel, queueItem.driveStatusIndex, queueItem.driveStatusTotal));
         }
         const syncResult = await syncConversationToDrive(payload, fileInfo, driveFolderId, driveCache);
@@ -3914,7 +5181,7 @@
             console.warn(`[CGUE Plus] Auto sync deferred conversation ${item.id}:`, getAutoDriveErrorMessage(error));
         };
 
-        const processQueue = async (ids, label) => {
+        const processQueue = async (ids, label, buildStatusText = null) => {
             const uniqueIds = ids.filter((id) => {
                 if (queuedIds.has(id)) return false;
                 queuedIds.add(id);
@@ -3922,12 +5189,16 @@
             });
             exportStats.total += uniqueIds.length;
             for (let i = 0; i < uniqueIds.length; i++) {
+                const nextIndex = i + 1;
                 const queueItem = buildAutoDriveQueueItem(
                     uniqueIds[i],
                     label,
                     currMeta[uniqueIds[i]],
-                    i + 1,
-                    uniqueIds.length
+                    nextIndex,
+                    uniqueIds.length,
+                    typeof buildStatusText === 'function'
+                        ? buildStatusText(nextIndex, uniqueIds.length)
+                        : ''
                 );
                 try {
                     await syncAutoDriveQueueItem(queueItem, workspaceId, driveFolderId, driveCache, exportStats);
@@ -3949,25 +5220,41 @@
             const rootIdsRaw = await collectIds(null, workspaceId, null, {
                 includeActive: includeRootActive,
                 includeArchived: includeRootArchived,
-                metaStore: currMeta
+                metaStore: currMeta,
+                onProgress: (info) => {
+                    setButtonStatus(t('statusFetchingRoot', getRootLabelFromArchived(info.isArchived), info.page));
+                }
             });
             const rootIds = rootIdsRaw.filter((id) => isIncrementalByUpdateTime(id, prevMeta, currMeta));
             incrementalStats.totalListed += rootIdsRaw.length;
             incrementalStats.incrementalKept += rootIds.length;
             incrementalStats.skipped += Math.max(0, rootIdsRaw.length - rootIds.length);
-            await processQueue(rootIds, rootLabel);
+            await processQueue(
+                rootIds,
+                rootLabel,
+                (index, total) => t('statusExportRoot', rootLabel, index, total)
+            );
         }
 
+        setButtonStatus(t('statusFetchingProjects'));
         const projects = await getProjects(workspaceId);
         for (const project of projects) {
+            setButtonStatus(t('statusFetchingProject', project.title));
             const projectIdsRaw = await collectIds(null, workspaceId, project.id, {
-                metaStore: currMeta
+                metaStore: currMeta,
+                onProgress: (info) => {
+                    setButtonStatus(t('statusFetchingProjectPage', project.title, info.page));
+                }
             });
             const projectIds = projectIdsRaw.filter((id) => isIncrementalByUpdateTime(id, prevMeta, currMeta));
             incrementalStats.totalListed += projectIdsRaw.length;
             incrementalStats.incrementalKept += projectIds.length;
             incrementalStats.skipped += Math.max(0, projectIdsRaw.length - projectIds.length);
-            await processQueue(projectIds, t('groupProject', project.title));
+            await processQueue(
+                projectIds,
+                t('groupProject', project.title),
+                (index, total) => t('statusExportProject', project.title, index, total)
+            );
         }
 
         for (let i = 0; i < deferredQueue.length; i++) {
@@ -4032,7 +5319,7 @@
         };
     }
 
-    const isRunnableAutoDriveTask = (task) => Boolean(task?.enabled && task?.paused !== true);
+    const isRunnableAutoDriveTask = (task) => Boolean(task?.paused !== true);
 
     const sortAutoDriveRunQueue = (tasks = []) => (
         [...tasks].sort((a, b) => {
@@ -4067,9 +5354,7 @@
             changed = true;
             return normalizeAutoDriveTask({
                 ...task,
-                nextRunAt: task.runOnStartup && !task.lastRunAt
-                    ? now
-                    : now + getAutoDriveIntervalMs(task)
+                nextRunAt: now + getAutoDriveIntervalMs(task)
             });
         });
         const normalizedTasks = normalizeAutoDriveTasks(nextTasks);
@@ -4173,7 +5458,7 @@
 
     async function executeAutoDriveTask(taskId, options = {}) {
         const source = options.source === 'manual' ? 'manual' : 'auto';
-        const accountContext = options.accountContext || await ensureAccountContext({
+        let accountContext = options.accountContext || await ensureAccountContext({
             notifyOnError: source === 'manual',
             force: source !== 'auto'
         });
@@ -4196,9 +5481,7 @@
         }
 
         const taskLabel = getAutoDriveTaskLabel(task);
-        if (source === 'manual') {
-            notify('info', t('autoSyncTaskStarted', taskLabel));
-        }
+        let startedToastId = null;
 
         const busyUntil = Date.now() + AUTO_DRIVE_LOCK_RETRY_MS;
         if (state.isExporting) {
@@ -4232,9 +5515,49 @@
             lastRunAt: startedAt,
             nextRunAt: startedAt + getAutoDriveIntervalMs(task)
         });
+        if (source === 'manual') {
+            startedToastId = notify('info', t('autoSyncTaskStarted', taskLabel));
+        }
 
         try {
-            const result = await runDriveIncrementalSync(task, accountContext, source);
+            let result = null;
+            let immediateRetryCount = 0;
+            while (true) {
+                try {
+                    result = await runDriveIncrementalSync(task, accountContext, source);
+                    break;
+                } catch (error) {
+                    if (
+                        immediateRetryCount < AUTO_DRIVE_IMMEDIATE_RETRY_MAX &&
+                        shouldImmediatelyRetryAutoDriveTask(error)
+                    ) {
+                        immediateRetryCount += 1;
+                        console.warn(
+                            `[CGUE Plus] Auto sync immediate retry ${immediateRetryCount}/${AUTO_DRIVE_IMMEDIATE_RETRY_MAX} for ${task.id}:`,
+                            getAutoDriveErrorMessage(error)
+                        );
+                        try {
+                            await prepareImmediateAutoDriveRetry(
+                                task,
+                                error,
+                                immediateRetryCount,
+                                AUTO_DRIVE_IMMEDIATE_RETRY_MAX
+                            );
+                            const refreshedAccountContext = await ensureAccountContext({
+                                notifyOnError: false,
+                                force: true
+                            });
+                            if (refreshedAccountContext?.accountKey === accountKey) {
+                                accountContext = refreshedAccountContext;
+                            }
+                            continue;
+                        } catch (retryError) {
+                            error = retryError;
+                        }
+                    }
+                    throw error;
+                }
+            }
             task = updateAutoDriveTaskState(accountKey, task.id, {
                 lastRunAt: startedAt,
                 lastSuccessAt: Date.now(),
@@ -4243,8 +5566,23 @@
                 paused: false,
                 nextRunAt: Date.now() + getAutoDriveIntervalMs(task)
             }) || task;
-            if (previousError || wasPaused) {
-                notify('success', t('autoSyncTaskRecovered', getAutoDriveTaskLabel(task)));
+            if (startedToastId != null) {
+                dismissToast(startedToastId);
+            }
+            if (source === 'manual' || previousError || wasPaused) {
+                const completionTitle = previousError || wasPaused
+                    ? t('autoSyncTaskRecovered', getAutoDriveTaskLabel(task))
+                    : t('autoSyncTaskCompleted', getAutoDriveTaskLabel(task));
+                const completionNotification = buildAutoDriveCompletionNotification(task, result, completionTitle);
+                notify(completionNotification.type, completionNotification.message, {
+                    detail: completionNotification.detail,
+                    collapsedSummary: completionNotification.collapsedSummary,
+                    collapsedDetail: completionNotification.collapsedDetail,
+                    collapsedDividerAfterLine: completionNotification.collapsedDividerAfterLine,
+                    detailAfterCollapsed: completionNotification.detailAfterCollapsed,
+                    secondaryCollapsedSummary: completionNotification.secondaryCollapsedSummary,
+                    secondaryCollapsedDetail: completionNotification.secondaryCollapsedDetail
+                });
             }
             return {
                 status: 'success',
@@ -4252,6 +5590,9 @@
                 result
             };
         } catch (error) {
+            if (startedToastId != null) {
+                dismissToast(startedToastId);
+            }
             const message = getAutoDriveErrorMessage(error);
             const pauseTask = shouldPauseAutoDriveTask(error);
             const failureCount = Math.max(0, Number(task.consecutiveFailures) || 0) + 1;
@@ -4260,7 +5601,7 @@
                 lastError: message,
                 consecutiveFailures: failureCount,
                 paused: pauseTask,
-                nextRunAt: pauseTask || task.enabled === false
+                nextRunAt: pauseTask
                     ? null
                     : Date.now() + getAutoDriveFailureDelayMs(task, failureCount)
             }) || task;
@@ -4768,6 +6109,10 @@
                 box-sizing: border-box;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             }
+            #${DIALOG_ID}.${BACKUP_STEP_CLASS} {
+                overflow-x: hidden;
+                overflow-y: auto;
+            }
             #${DIALOG_ID} > h2 {
                 margin: 0 0 14px;
                 font-size: 18px;
@@ -4783,6 +6128,137 @@
                 gap: 12px;
                 margin-bottom: 12px;
             }
+            .cgue-dialog-title {
+                display: inline-flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 0;
+            }
+            .cgue-dialog-title-icon {
+                width: 20px;
+                height: 20px;
+                color: var(--cgue-text);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .cgue-dialog-title-icon svg {
+                width: 20px;
+                height: 20px;
+                display: block;
+            }
+            .cgue-step-hero {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 0;
+            }
+            .cgue-step-hero-icon {
+                width: 32px;
+                height: 32px;
+                color: var(--cgue-text);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .cgue-step-hero-icon svg {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+            .cgue-step-hero-copy {
+                min-width: 0;
+                flex: 1;
+            }
+            .cgue-step-hero-copy h2 {
+                margin: 0;
+                font-size: 18px;
+                line-height: 1.2;
+                letter-spacing: -0.01em;
+            }
+            .cgue-step-hero-subline {
+                margin-top: 6px;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                min-width: 0;
+                flex-wrap: wrap;
+                line-height: 1.35;
+                color: var(--cgue-muted);
+            }
+            .cgue-step-hero-copy p {
+                margin: 6px 0 0;
+                line-height: 1.35;
+            }
+            .cgue-step-hero-subline-text {
+                min-width: 0;
+            }
+            .cgue-auto-sync-tip {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                flex-shrink: 0;
+            }
+            .cgue-auto-sync-tip-trigger {
+                width: 18px;
+                height: 18px;
+                padding: 0;
+                border-radius: 999px;
+                border: 1px solid var(--cgue-border);
+                background: var(--cgue-card);
+                color: var(--cgue-muted);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                font-size: 12px;
+                font-weight: 700;
+                line-height: 1;
+                user-select: none;
+                font-family: inherit;
+                appearance: none;
+            }
+            .cgue-auto-sync-tip:hover .cgue-auto-sync-tip-trigger,
+            .cgue-auto-sync-tip:focus-within .cgue-auto-sync-tip-trigger,
+            .cgue-auto-sync-tip-trigger:hover,
+            .cgue-auto-sync-tip-trigger:focus-visible {
+                color: var(--cgue-text);
+                background: var(--cgue-hover);
+            }
+            .cgue-auto-sync-tip-trigger:focus-visible {
+                outline: 2px solid var(--cgue-primary);
+                outline-offset: 2px;
+            }
+            .cgue-auto-sync-tip-body {
+                position: absolute;
+                top: calc(100% + 8px);
+                right: 0;
+                width: min(320px, calc(100vw - 88px));
+                padding: 10px 12px;
+                box-sizing: border-box;
+                border-radius: 10px;
+                border: 1px solid var(--cgue-border);
+                background: var(--cgue-card);
+                color: var(--cgue-muted);
+                box-shadow: var(--cgue-shadow);
+                font-size: 12px;
+                line-height: 1.55;
+                z-index: 2;
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(-4px);
+                pointer-events: none;
+                transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+            }
+            .cgue-auto-sync-tip:hover .cgue-auto-sync-tip-body,
+            .cgue-auto-sync-tip:focus-within .cgue-auto-sync-tip-body {
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+                pointer-events: auto;
+            }
             .cgue-dialog-header h2 {
                 margin: 0;
                 font-size: 18px;
@@ -4794,25 +6270,144 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 8px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
             }
-            .cgue-icon-btn {
-                width: 32px;
-                height: 32px;
+            .cgue-header-action-btn {
+                min-height: 32px;
+                padding: 0 10px;
+                box-sizing: border-box;
                 border-radius: 8px;
                 border: 1px solid var(--cgue-border);
                 background: var(--cgue-card);
                 color: var(--cgue-text);
+                appearance: none;
+                -webkit-appearance: none;
                 cursor: pointer;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
+                gap: 8px;
+                flex-shrink: 0;
+                font-family: inherit;
+            }
+            .cgue-header-action-btn.cgue-header-action-btn-icon-only {
+                width: 32px;
+                min-width: 32px;
+                min-height: 32px;
+                padding: 0;
+                gap: 0;
+            }
+            .cgue-header-action-btn:hover {
+                background: var(--cgue-hover);
+            }
+            .cgue-header-action-btn:active {
+                transform: scale(0.98);
+            }
+            .cgue-header-action-btn-icon {
+                width: 14px;
+                height: 14px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .cgue-header-action-btn-icon svg {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+            .cgue-header-action-btn-text {
+                font-size: 12px;
+                font-weight: 700;
+                line-height: 1;
+                white-space: nowrap;
+            }
+            .cgue-icon-btn {
+                width: 32px;
+                height: 32px;
+                padding: 0;
+                box-sizing: border-box;
+                border-radius: 8px;
+                border: 1px solid var(--cgue-border);
+                background: var(--cgue-card);
+                color: var(--cgue-text);
+                appearance: none;
+                -webkit-appearance: none;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
                 font-size: 14px;
+                line-height: 1;
+                font-family: inherit;
             }
             .cgue-icon-btn:hover {
                 background: var(--cgue-hover);
             }
             .cgue-icon-btn:active {
                 transform: scale(0.98);
+            }
+            .cgue-icon-btn:disabled,
+            .cgue-header-action-btn:disabled {
+                opacity: 0.58;
+                cursor: not-allowed;
+            }
+            #${BACKUP_DIALOG_ID} #cgue-backup-close {
+                border-radius: 12px;
+                box-shadow: none;
+                transition:
+                    background 0.18s ease,
+                    border-color 0.18s ease,
+                    box-shadow 0.18s ease,
+                    color 0.18s ease,
+                    transform 0.18s ease;
+            }
+            #${BACKUP_DIALOG_ID} #cgue-backup-close:not(:hover):not(:focus-visible) {
+                border-color: transparent;
+                background: transparent;
+                box-shadow: none;
+            }
+            #${BACKUP_DIALOG_ID} #cgue-backup-close:hover {
+                background: rgba(148, 163, 184, 0.12);
+                border-color: rgba(148, 163, 184, 0.28);
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+            }
+            #${BACKUP_DIALOG_ID} #cgue-backup-close:focus-visible {
+                background: rgba(148, 163, 184, 0.12);
+                border-color: rgba(16, 163, 127, 0.28);
+                box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.14);
+                outline: none;
+            }
+            #${BACKUP_DIALOG_ID} #cgue-backup-close:active {
+                transform: scale(0.96);
+            }
+            #${BACKUP_DIALOG_ID} #cgue-backup-close .cgue-close-icon {
+                width: 16px;
+                height: 16px;
+                display: block;
+                color: currentColor;
+                flex-shrink: 0;
+                pointer-events: none;
+                overflow: visible;
+            }
+            #${BACKUP_DIALOG_ID} #cgue-backup-close .cgue-close-icon line {
+                stroke: currentColor;
+                stroke-width: 2.2;
+                stroke-linecap: round;
+            }
+            @media (prefers-color-scheme: dark) {
+                #${BACKUP_DIALOG_ID} #cgue-backup-close:hover {
+                    background: rgba(148, 163, 184, 0.14);
+                    border-color: rgba(148, 163, 184, 0.32);
+                    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+                }
+                #${BACKUP_DIALOG_ID} #cgue-backup-close:focus-visible {
+                    background: rgba(148, 163, 184, 0.14);
+                    border-color: rgba(52, 211, 153, 0.34);
+                    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+                }
             }
             #${BACKUP_OVERLAY_ID} {
                 position: fixed;
@@ -4859,6 +6454,9 @@
                 gap: 14px;
                 margin-top: 16px;
             }
+            .cgue-step-body {
+                margin-top: 16px;
+            }
             .cgue-backup {
                 margin-top: 16px;
                 padding: 0;
@@ -4883,11 +6481,14 @@
                 opacity: 0;
                 pointer-events: none;
             }
-            .cgue-backup-option span {
+            .cgue-backup-option > .cgue-backup-option-shell {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
+                gap: 8px;
+                min-height: 36px;
                 padding: 6px 14px;
+                box-sizing: border-box;
                 border-radius: 999px;
                 border: 1px solid var(--cgue-border);
                 background: var(--cgue-surface);
@@ -4896,17 +6497,69 @@
                 font-weight: 600;
                 transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
             }
-            .cgue-backup-option input:checked + span {
+            .cgue-backup-option-text {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 24px;
+                padding: 0;
+                border-radius: 999px;
+                color: inherit;
+                line-height: 1.2;
+                transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+            }
+            .cgue-backup-option-icon {
+                display: inline-flex;
+                width: 18px;
+                height: 18px;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                transition: background 0.2s ease, box-shadow 0.2s ease;
+            }
+            .cgue-backup-option-icon svg {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+            .cgue-backup-option-drive > .cgue-backup-option-shell {
+                gap: 10px;
+                padding-left: 12px;
+                padding-right: 16px;
+            }
+            .cgue-backup-option-local > .cgue-backup-option-shell {
+                gap: 10px;
+                padding-left: 12px;
+                padding-right: 16px;
+            }
+            .cgue-backup-option input:checked + .cgue-backup-option-shell {
                 background: var(--cgue-pill-active-bg, var(--cgue-primary));
                 border-color: var(--cgue-pill-active-border, var(--cgue-primary));
                 color: var(--cgue-pill-active-text, var(--cgue-on-primary));
                 box-shadow: var(--cgue-pill-active-shadow, var(--cgue-primary-shadow));
             }
-            .cgue-backup-option input:focus-visible + span {
+            .cgue-backup-option-local .cgue-backup-option-icon {
+                width: 20px;
+                height: 20px;
+                opacity: 1;
+            }
+            .cgue-backup-option-local .cgue-backup-option-icon svg {
+                width: 80%;
+                height: 80%;
+                transform: translateY(0.25px);
+            }
+            .cgue-backup-option-drive .cgue-backup-option-icon {
+                border-radius: 4px;
+            }
+            .cgue-backup-option-drive input:checked + .cgue-backup-option-shell .cgue-backup-option-icon {
+                background: rgba(255, 255, 255, 0.96);
+                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+            }
+            .cgue-backup-option input:focus-visible + .cgue-backup-option-shell {
                 outline: 2px solid var(--cgue-primary);
                 outline-offset: 2px;
             }
-            .cgue-backup-option:active span {
+            .cgue-backup-option:active > .cgue-backup-option-shell {
                 transform: translateY(1px);
             }
             .cgue-btn-ghost {
@@ -4994,7 +6647,9 @@
                 margin-left: auto;
             }
             #${BACKUP_DIALOG_ID} .cgue-drive-actions .cgue-btn,
-            #${BACKUP_DIALOG_ID} .cgue-auto-sync-actions .cgue-btn {
+            #${BACKUP_DIALOG_ID} .cgue-auto-sync-actions .cgue-btn,
+            #${DIALOG_ID}.${BACKUP_STEP_CLASS} .cgue-drive-actions .cgue-btn,
+            #${DIALOG_ID}.${BACKUP_STEP_CLASS} .cgue-auto-sync-actions .cgue-btn {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
@@ -5015,6 +6670,19 @@
                 padding-top: 18px;
                 border-top: 1px solid var(--cgue-border);
             }
+            .cgue-auto-sync.cgue-auto-sync-standalone {
+                padding-top: 0;
+                border-top: none;
+            }
+            .cgue-auto-sync.cgue-auto-sync-task-only {
+                margin-top: 14px;
+            }
+            .cgue-auto-sync.cgue-auto-sync-task-only .cgue-auto-task-detail {
+                margin-top: 0;
+            }
+            .cgue-auto-sync.cgue-auto-sync-task-only .cgue-auto-editor {
+                margin-top: 0;
+            }
             .cgue-auto-sync-header {
                 display: flex;
                 flex-direction: column;
@@ -5030,7 +6698,6 @@
             .cgue-auto-sync-title-main {
                 display: inline-flex;
                 align-items: center;
-                gap: 8px;
                 min-width: 0;
             }
             .cgue-auto-sync-title-row h3 {
@@ -5045,76 +6712,31 @@
                 line-height: 1.55;
                 color: var(--cgue-muted);
             }
-            .cgue-auto-sync-tip {
-                margin: 0;
-                position: static;
-            }
-            .cgue-auto-sync-tip summary {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: 22px;
-                height: 22px;
-                border-radius: 999px;
-                border: 1px solid var(--cgue-border);
-                background: var(--cgue-card);
-                list-style: none;
-                cursor: pointer;
-                user-select: none;
-                font-size: 13px;
-                font-weight: 700;
-                line-height: 1;
-                color: var(--cgue-muted);
-                transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-            }
-            .cgue-auto-sync-tip summary::-webkit-details-marker {
-                display: none;
-            }
-            .cgue-auto-sync-tip summary:hover {
-                color: var(--cgue-text);
-                border-color: var(--cgue-primary);
-            }
-            .cgue-auto-sync-tip summary:focus-visible {
-                outline: 2px solid var(--cgue-primary);
-                outline-offset: 2px;
-            }
-            .cgue-auto-sync-tip[open] summary {
-                color: var(--cgue-primary);
-                border-color: rgba(16, 163, 127, 0.28);
-                background: rgba(16, 163, 127, 0.08);
-                box-shadow: 0 4px 14px rgba(16, 163, 127, 0.12);
-            }
-            .cgue-auto-sync-tip-body {
-                position: absolute;
-                top: calc(100% + 8px);
-                left: 50%;
-                transform: translateX(-50%);
-                z-index: 2;
-                width: min(320px, calc(100vw - 96px));
-                padding: 10px 12px;
-                border-radius: 10px;
-                border: 1px solid var(--cgue-border);
-                background: var(--cgue-surface);
-                box-shadow: var(--cgue-shadow);
-                font-size: 12px;
-                line-height: 1.55;
-                color: var(--cgue-muted);
-                white-space: normal;
-            }
             .cgue-auto-sync-account {
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                justify-content: space-between;
+                gap: 10px;
                 width: 100%;
                 min-height: 40px;
                 box-sizing: border-box;
-                margin-top: 4px;
                 padding: 8px 12px;
                 border-radius: 10px;
                 background: var(--cgue-hover);
                 font-size: 12px;
                 color: var(--cgue-muted);
                 line-height: 1.45;
+            }
+            .cgue-auto-sync-account-main {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .cgue-auto-sync-account-text {
+                flex: 1 1 auto;
+                min-width: 0;
                 word-break: break-word;
             }
             .cgue-auto-sync-account-dot {
@@ -5133,11 +6755,25 @@
                 gap: 8px;
                 flex-shrink: 0;
             }
+            .cgue-auto-sync-actions .cgue-auto-sync-add-btn {
+                width: 45px;
+                min-width: 45px;
+                min-height: 45px;
+            }
+            .cgue-auto-sync-account .cgue-auto-sync-refresh-btn {
+                width: 30px;
+                min-width: 30px;
+                height: 30px;
+                min-height: 30px;
+                padding: 0;
+                border-radius: 999px;
+                flex: 0 0 auto;
+            }
             .cgue-auto-task-list {
                 display: flex;
                 flex-direction: column;
                 gap: 10px;
-                margin-top: 14px;
+                margin-top: 4px;
             }
             .cgue-auto-sync-empty {
                 padding: 20px;
@@ -5160,6 +6796,49 @@
                 box-shadow: 0 3px 12px rgba(15, 23, 42, 0.08);
                 border-color: var(--cgue-border);
             }
+            .cgue-auto-task-entry {
+                width: 100%;
+                padding: 0;
+                text-align: left;
+                appearance: none;
+                cursor: pointer;
+                color: inherit;
+                font: inherit;
+            }
+            .cgue-auto-task-entry:focus-visible {
+                outline: 2px solid var(--cgue-primary);
+                outline-offset: 2px;
+            }
+            .cgue-auto-task-entry-layout {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                padding: 14px;
+            }
+            .cgue-auto-task-entry-top {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 0;
+            }
+            .cgue-auto-task-entry-scope {
+                flex: 1;
+                min-width: 0;
+                font-size: 13px;
+                line-height: 1.45;
+                color: var(--cgue-text);
+                word-break: break-word;
+            }
+            .cgue-auto-task-entry-bottom {
+                display: flex;
+                align-items: flex-end;
+                justify-content: space-between;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .cgue-auto-task-entry-bottom .cgue-auto-task-status {
+                margin-left: auto;
+            }
             .cgue-auto-task-summary {
                 display: flex;
                 align-items: center;
@@ -5167,8 +6846,29 @@
                 padding: 10px 14px;
                 user-select: none;
             }
+            .cgue-auto-task-title {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .cgue-auto-task-title-icon {
+                width: 22px;
+                height: 22px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .cgue-auto-task-title-icon svg {
+                display: block;
+                width: 20px;
+                height: 20px;
+            }
             .cgue-auto-task-summary strong {
                 flex: 1;
+                min-width: 0;
                 font-size: 12.5px;
                 font-weight: 600;
                 line-height: 1.35;
@@ -5176,7 +6876,6 @@
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                min-width: 0;
             }
             .cgue-auto-task-expand {
                 flex-shrink: 0;
@@ -5223,6 +6922,9 @@
             .cgue-auto-task[data-expanded="true"] .cgue-auto-task-body {
                 display: flex;
             }
+            .cgue-auto-task-body-static {
+                display: flex;
+            }
             .cgue-auto-task-status {
                 display: inline-flex;
                 align-items: center;
@@ -5266,15 +6968,6 @@
             .cgue-auto-task-status[data-status="paused"] .cgue-auto-task-status-dot {
                 background: #d97706;
             }
-            .cgue-auto-task-status[data-status="disabled"] {
-                background: var(--cgue-hover);
-                color: var(--cgue-muted);
-                border-color: var(--cgue-border);
-            }
-            .cgue-auto-task-status[data-status="disabled"] .cgue-auto-task-status-dot {
-                background: var(--cgue-muted);
-                opacity: 0.5;
-            }
             @keyframes cgue-pulse {
                 0%, 100% { opacity: 1; }
                 50% { opacity: 0.4; }
@@ -5282,6 +6975,7 @@
             .cgue-auto-task-actions {
                 display: flex;
                 flex-wrap: wrap;
+                align-items: center;
                 gap: 6px;
             }
             .cgue-auto-task-actions .cgue-btn {
@@ -5289,13 +6983,104 @@
                 font-size: 11px;
                 border-radius: 6px;
             }
-            .cgue-auto-task-actions .cgue-btn-danger {
-                color: #ef4444;
-                border-color: rgba(239, 68, 68, 0.3);
+            .cgue-auto-task-actions .cgue-auto-task-status {
+                margin-left: auto;
+                flex: 0 0 auto;
             }
-            .cgue-auto-task-actions .cgue-btn-danger:hover {
+            .cgue-auto-sync-actions .cgue-auto-task-icon-btn,
+            .cgue-auto-sync-account .cgue-auto-task-icon-btn,
+            .cgue-auto-task-actions .cgue-auto-task-icon-btn {
+                padding: 0;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 999px;
+                border: 1px solid transparent;
+                background: transparent;
+                box-shadow: none;
+                color: inherit;
+                transition:
+                    border-color 0.18s ease,
+                    background 0.18s ease,
+                    color 0.18s ease,
+                    transform 0.18s ease;
+            }
+            .cgue-auto-task-actions .cgue-auto-task-icon-btn {
+                width: 32px;
+                height: 32px;
+                flex: 0 0 auto;
+            }
+            .cgue-auto-sync-actions .cgue-auto-task-icon-btn:hover,
+            .cgue-auto-sync-actions .cgue-auto-task-icon-btn:focus-visible,
+            .cgue-auto-sync-actions .cgue-auto-task-icon-btn:active,
+            .cgue-auto-sync-actions .cgue-auto-task-icon-btn[data-selected="true"],
+            .cgue-auto-sync-account .cgue-auto-task-icon-btn:hover,
+            .cgue-auto-sync-account .cgue-auto-task-icon-btn:focus-visible,
+            .cgue-auto-sync-account .cgue-auto-task-icon-btn:active,
+            .cgue-auto-sync-account .cgue-auto-task-icon-btn[data-selected="true"],
+            .cgue-auto-task-actions .cgue-auto-task-icon-btn:hover,
+            .cgue-auto-task-actions .cgue-auto-task-icon-btn:focus-visible,
+            .cgue-auto-task-actions .cgue-auto-task-icon-btn:active,
+            .cgue-auto-task-actions .cgue-auto-task-icon-btn[data-selected="true"] {
+                background: rgba(148, 163, 184, 0.18);
+                border-color: rgba(148, 163, 184, 0.42);
+            }
+            .cgue-auto-task-delete-btn:hover,
+            .cgue-auto-task-delete-btn:focus-visible,
+            .cgue-auto-task-delete-btn:active,
+            .cgue-auto-task-delete-btn[data-selected="true"] {
+                color: #ef4444;
                 background: rgba(239, 68, 68, 0.08);
-                border-color: rgba(239, 68, 68, 0.5);
+                border-color: rgba(239, 68, 68, 0.42);
+            }
+            .cgue-auto-task-icon-btn .cgue-auto-task-icon {
+                width: 18px;
+                height: 18px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .cgue-auto-sync-account .cgue-auto-sync-refresh-btn .cgue-auto-task-icon {
+                width: 16px;
+                height: 16px;
+            }
+            .cgue-auto-sync-account .cgue-auto-sync-refresh-btn .cgue-auto-task-icon svg {
+                transform: scale(1.08);
+                transform-origin: center;
+                overflow: visible;
+            }
+            .cgue-auto-sync-actions .cgue-auto-sync-add-btn .cgue-auto-task-icon {
+                width: 18px;
+                height: 18px;
+            }
+            .cgue-auto-task-icon-btn .cgue-auto-task-icon svg {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+            .cgue-auto-task-preview {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 0 14px 12px;
+            }
+            .cgue-auto-task-preview-item {
+                display: inline-flex;
+                align-items: center;
+                min-width: 0;
+                padding: 3px 8px;
+                border-radius: 999px;
+                background: var(--cgue-hover);
+                color: var(--cgue-muted);
+                font-size: 11px;
+                line-height: 1.35;
+                word-break: break-word;
+            }
+            .cgue-auto-task-detail {
+                margin-top: 14px;
+            }
+            .cgue-auto-task-detail-card {
+                margin-bottom: 14px;
             }
             .cgue-auto-task-meta {
                 display: grid;
@@ -5332,21 +7117,21 @@
                 word-break: break-word;
             }
             .cgue-auto-editor {
-                margin-top: 14px;
-                padding: 18px;
-                border-radius: 12px;
-                border: 1px solid var(--cgue-primary);
-                background: var(--cgue-surface);
-                box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.08);
+                margin-top: 0;
+                padding: 0;
+                border: none;
+                background: transparent;
+                box-shadow: none;
             }
-            .cgue-auto-editor h3 {
-                margin: 0 0 16px;
-                font-size: 15px;
-                font-weight: 700;
+            .cgue-auto-editor-card {
+                margin-bottom: 0;
+            }
+            .cgue-auto-editor-card .cgue-auto-task-body {
+                padding-top: 16px;
             }
             .cgue-auto-editor-grid {
                 display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: minmax(0, 1fr);
                 gap: 14px;
             }
             .cgue-auto-editor-grid label {
@@ -5361,30 +7146,55 @@
             }
             .cgue-auto-editor-options {
                 margin-top: 14px;
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 12px 28px;
-                align-items: start;
+                display: flex;
+                justify-content: flex-start;
             }
             .cgue-auto-editor-options-column {
                 display: flex;
                 flex-direction: column;
+                align-items: flex-start;
                 gap: 12px;
             }
             .cgue-auto-editor-options .cgue-toggle {
                 min-height: 18px;
+                display: grid;
+                grid-template-columns: 8ch auto;
+                align-items: center;
+                justify-content: flex-start;
+                column-gap: 10px;
+            }
+            .cgue-auto-editor-options .cgue-toggle-track {
+                justify-self: start;
+            }
+            .cgue-auto-editor-options .cgue-toggle-label {
+                white-space: nowrap;
             }
             .cgue-auto-editor .cgue-drive-actions {
                 margin-top: 16px;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
             }
             .cgue-auto-editor .cgue-drive-actions .cgue-status {
-                flex: 1 1 auto;
+                flex: 0 0 auto;
+                margin-top: 0;
             }
-            .cgue-auto-editor .cgue-drive-actions .cgue-btn {
-                margin-left: 0;
+            .cgue-auto-editor .cgue-drive-action-buttons {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
             }
-            .cgue-auto-editor .cgue-drive-actions #cgue-auto-task-save {
+            .cgue-auto-editor .cgue-drive-action-buttons-main {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 12px;
                 margin-left: auto;
+            }
+            .cgue-auto-editor .cgue-drive-action-buttons .cgue-btn {
+                margin-left: 0;
             }
             .cgue-card-btn {
                 padding: 14px;
@@ -5396,10 +7206,22 @@
                 cursor: pointer;
                 box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
             }
+            .cgue-card-btn:disabled {
+                opacity: 0.58;
+                cursor: not-allowed;
+                box-shadow: none;
+            }
             .cgue-card-icon-btn {
                 display: flex;
                 align-items: center;
                 gap: 14px;
+            }
+            .cgue-card-mode-main {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-width: 0;
+                flex: 1;
             }
             .cgue-card-icon {
                 width: 40px;
@@ -5413,6 +7235,11 @@
                 display: block;
                 width: 32px;
                 height: 32px;
+            }
+            .cgue-icon-export-all svg,
+            .cgue-icon-select svg {
+                width: 28px;
+                height: 28px;
             }
             .cgue-card-text {
                 flex: 1;
@@ -5480,6 +7307,23 @@
                 color: var(--cgue-text);
             }
             @media (max-width: 640px) {
+                .cgue-header-action-btn {
+                    padding: 0 8px;
+                    gap: 6px;
+                }
+                .cgue-header-action-btn-text {
+                    font-size: 11px;
+                }
+                .cgue-step-hero {
+                    gap: 12px;
+                }
+                .cgue-step-hero-icon {
+                    width: 32px;
+                    height: 32px;
+                }
+                .cgue-auto-sync-tip-body {
+                    width: min(280px, calc(100vw - 80px));
+                }
                 .cgue-auto-sync-title-row {
                     flex-direction: column;
                     align-items: flex-start;
@@ -5488,13 +7332,14 @@
                 .cgue-auto-sync-title-main {
                     width: 100%;
                 }
-                .cgue-auto-sync-tip-body {
-                    left: 50%;
-                    transform: translateX(-50%);
-                    width: min(280px, calc(100vw - 72px));
-                }
                 .cgue-auto-sync-actions {
                     width: 100%;
+                }
+                .cgue-auto-sync-account {
+                    align-items: flex-start;
+                }
+                .cgue-auto-sync-account .cgue-auto-sync-refresh-btn {
+                    margin-top: 1px;
                 }
                 .cgue-auto-task-meta {
                     grid-template-columns: repeat(2, 1fr);
@@ -5503,18 +7348,30 @@
                     grid-template-columns: minmax(0, 1fr);
                 }
                 .cgue-auto-editor-options {
-                    grid-template-columns: minmax(0, 1fr);
                     gap: 10px;
                 }
                 .cgue-auto-editor .cgue-drive-actions {
                     align-items: stretch;
                 }
-                .cgue-auto-editor .cgue-drive-actions #cgue-auto-task-save {
+                .cgue-auto-editor .cgue-drive-action-buttons {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .cgue-auto-editor .cgue-drive-action-buttons-main {
+                    width: 100%;
+                    flex-direction: column;
+                    align-items: stretch;
                     margin-left: 0;
+                }
+                .cgue-auto-editor .cgue-drive-action-buttons .cgue-btn {
+                    width: 100%;
                 }
                 .cgue-card-row {
                     flex-direction: column;
                     align-items: flex-start;
+                }
+                .cgue-card-mode-main {
+                    width: 100%;
                 }
                 .cgue-card-controls {
                     flex-direction: row;
@@ -5578,6 +7435,80 @@
                 display: inline-block;
                 margin-top: 8px;
             }
+            .cgue-workspace-restore-callout,
+            .cgue-selection-loading-callout {
+                margin: 0 0 16px;
+            }
+            .cgue-selection-loading {
+                margin-top: 10px;
+            }
+            .cgue-workspace-restore-statusline,
+            .cgue-selection-loading-statusline {
+                display: block;
+                color: var(--cgue-muted);
+                font-size: 14px;
+                line-height: 1.4;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .cgue-workspace-restore-callout[data-tone="success"] .cgue-workspace-restore-statusline,
+            .cgue-selection-loading-callout[data-tone="success"] .cgue-selection-loading-statusline {
+                color: var(--cgue-callout-success-text);
+            }
+            .cgue-workspace-restore-callout[data-tone="warning"] .cgue-workspace-restore-statusline,
+            .cgue-selection-loading-callout[data-tone="warning"] .cgue-selection-loading-statusline {
+                color: var(--cgue-callout-warning-text);
+            }
+            .cgue-workspace-restore-progress,
+            .cgue-selection-loading-progress {
+                flex: 1 1 auto;
+                position: relative;
+                height: 12px;
+                overflow: hidden;
+                border: 1px solid var(--cgue-border);
+                border-radius: 999px;
+                background: var(--cgue-input-bg);
+                box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+            }
+            .cgue-workspace-restore-progress-row,
+            .cgue-selection-loading-progress-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-top: 10px;
+            }
+            .cgue-workspace-restore-progress > span,
+            .cgue-selection-loading-progress > span {
+                display: block;
+                height: 100%;
+                border-radius: inherit;
+                background: linear-gradient(90deg, #34d399 0%, var(--cgue-primary) 100%);
+                transition: width 0.28s ease;
+            }
+            .cgue-workspace-restore-count,
+            .cgue-selection-loading-count {
+                flex: 0 0 auto;
+                min-width: 32px;
+                text-align: right;
+                color: var(--cgue-muted);
+                font-size: 12px;
+                font-weight: 700;
+                line-height: 1;
+                font-variant-numeric: tabular-nums;
+            }
+            .cgue-workspace-restore-callout[data-tone="success"] .cgue-workspace-restore-count,
+            .cgue-selection-loading-callout[data-tone="success"] .cgue-selection-loading-count {
+                color: var(--cgue-callout-success-text);
+            }
+            .cgue-workspace-restore-callout[data-tone="warning"] .cgue-workspace-restore-progress > span,
+            .cgue-selection-loading-callout[data-tone="warning"] .cgue-selection-loading-progress > span {
+                background: linear-gradient(90deg, #fbbf24 0%, var(--cgue-callout-warning-border) 100%);
+            }
+            .cgue-workspace-restore-callout[data-tone="warning"] .cgue-workspace-restore-count,
+            .cgue-selection-loading-callout[data-tone="warning"] .cgue-selection-loading-count {
+                color: var(--cgue-callout-warning-text);
+            }
             .cgue-scope-summary {
                 display: flex;
                 align-items: center;
@@ -5592,6 +7523,70 @@
             .cgue-scope-summary code {
                 margin-top: 0;
                 min-width: 0;
+            }
+            .cgue-mode-team-panel {
+                display: grid;
+                grid-template-columns: 40px minmax(0, 1fr);
+                column-gap: 14px;
+                align-items: start;
+            }
+            .cgue-mode-field-label {
+                display: block;
+                font-size: 13px;
+                font-weight: 700;
+                color: currentColor;
+            }
+            .cgue-mode-team-icon {
+                width: 40px;
+                height: 40px;
+                margin-top: 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .cgue-mode-team-icon svg {
+                width: 28px;
+                height: 28px;
+                display: block;
+            }
+            .cgue-mode-team-content {
+                display: flex;
+                min-width: 0;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .cgue-mode-team-copy {
+                display: flex;
+                min-width: 0;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .cgue-mode-team-copy .cgue-mode-field-label,
+            .cgue-mode-team-copy .cgue-mode-field-hint {
+                margin: 0;
+            }
+            .cgue-mode-field-hint {
+                margin: 0;
+                font-size: 12px;
+                line-height: 1.5;
+                opacity: 0.82;
+            }
+            .cgue-mode-team-manual {
+                display: flex;
+                flex-direction: column;
+            }
+            .cgue-mode-team-manual[hidden] {
+                display: none;
+            }
+            .cgue-mode-team-content > .cgue-input {
+                margin-top: 0;
+            }
+            .cgue-mode-team-manual > .cgue-input {
+                margin-top: 2px;
+            }
+            .cgue-select {
+                appearance: auto;
             }
             .cgue-workspace-row {
                 display: inline-flex;
@@ -5723,6 +7718,7 @@
 
     function closeDialog() {
         closeBackupSettingsDialog();
+        clearDialogWorkspaceOrigin();
         const overlay = document.getElementById(OVERLAY_ID);
         if (overlay) overlay.remove();
     }
@@ -5767,12 +7763,15 @@
             : t('autoSyncTaskModePersonal')
     );
 
+    const getAutoDriveTaskDetailScopeLabel = (task) => (
+        isAutoDriveTaskUsingDefaultTeamLabel(task)
+            ? t('autoSyncTaskModeTeam')
+            : getAutoDriveTaskScopeLabel(task)
+    );
+
     const getAutoDriveTaskStatusLabel = (task) => {
         if ((state.autoDrive.runningTaskIds || []).includes(task?.id)) {
             return t('autoSyncTaskStatusRunning');
-        }
-        if (task?.enabled === false) {
-            return t('autoSyncTaskStatusDisabled');
         }
         if (task?.paused === true) {
             return t('autoSyncTaskStatusPaused');
@@ -5782,15 +7781,18 @@
 
     const getAutoDriveTaskStatusKey = (task) => {
         if ((state.autoDrive.runningTaskIds || []).includes(task?.id)) return 'running';
-        if (task?.enabled === false) return 'disabled';
         if (task?.paused === true) return 'paused';
         return 'scheduled';
     };
 
     const getAutoDriveTaskToggleLabel = (task) => {
-        if (task?.enabled === false) return t('autoSyncEnable');
         if (task?.paused === true) return t('autoSyncResume');
         return t('autoSyncPause');
+    };
+
+    const getAutoDriveTaskToggleIcon = (task) => {
+        if (task?.paused === true) return AUTO_DRIVE_RESUME_ICON;
+        return AUTO_DRIVE_PAUSE_ICON;
     };
 
     const getAvailableAutoDriveWorkspaceIds = (editingTaskId = state.autoDrive.editingId) => {
@@ -5854,7 +7856,18 @@
         return normalizeStringValue(form?.workspaceId, false) || getSuggestedAutoDriveWorkspaceId();
     };
 
-    function openAutoDriveTaskEditor(task = null) {
+    function openAutoDriveTaskDetail(task = null, options = {}) {
+        if (!task?.id) return;
+        state.autoDrive.editorOpen = false;
+        state.autoDrive.editingId = task.id;
+        state.autoDrive.form = createDefaultAutoTaskForm(task);
+        state.autoDrive._skipFormRead = true;
+        if (options.refreshUi !== false) {
+            refreshAutoDriveUi();
+        }
+    }
+
+    function openAutoDriveTaskEditor(task = null, options = {}) {
         const availableModes = getAvailableAutoDriveModes(task?.id || '');
         if (!task && !availableModes.personalAvailable && !availableModes.teamAvailable) {
             return;
@@ -5870,85 +7883,144 @@
         state.autoDrive.editingId = task?.id || '';
         state.autoDrive.form = createDefaultAutoTaskForm(initialTask);
         state.autoDrive._skipFormRead = true;
-        refreshAutoDriveUi();
-    }
-
-    function closeAutoDriveTaskEditor() {
-        state.autoDrive.editorOpen = false;
-        state.autoDrive.editingId = '';
-        state.autoDrive.form = createDefaultAutoTaskForm();
-        refreshAutoDriveUi();
-    }
-
-    const isAutoDriveTaskExpanded = (taskId) => (
-        normalizeStringValue(taskId, false) !== '' &&
-        (state.autoDrive.expandedTaskIds || []).includes(normalizeStringValue(taskId, false))
-    );
-
-    const setAutoDriveTaskExpanded = (taskId, expanded) => {
-        const normalizedTaskId = normalizeStringValue(taskId, false);
-        if (!normalizedTaskId) return;
-        const nextExpandedTaskIds = new Set(state.autoDrive.expandedTaskIds || []);
-        if (expanded) {
-            nextExpandedTaskIds.add(normalizedTaskId);
-        } else {
-            nextExpandedTaskIds.delete(normalizedTaskId);
+        if (options.refreshUi !== false) {
+            refreshAutoDriveUi();
         }
-        state.autoDrive.expandedTaskIds = Array.from(nextExpandedTaskIds);
+    }
+
+    function closeAutoDriveTaskEditor(options = {}) {
+        const preserveTask = options.preserveTask === true;
+        state.autoDrive.editorOpen = false;
+        if (!preserveTask) {
+            state.autoDrive.editingId = '';
+            state.autoDrive.form = createDefaultAutoTaskForm();
+        }
+        if (options.refreshUi !== false) {
+            refreshAutoDriveUi();
+        }
+    }
+
+    const getCurrentAutoDriveEditingTask = () => {
+        const editingId = normalizeStringValue(state.autoDrive.editingId, false);
+        if (!editingId) return null;
+        return (state.autoDrive.tasks || []).find((task) => task?.id === editingId) || null;
+    };
+
+    function renderAutoDriveTaskMetaGrid(task, options = {}) {
+        if (!task) return '';
+        const scope = escapeHtml(
+            options?.detailView === true
+                ? getAutoDriveTaskDetailScopeLabel(task)
+                : getAutoDriveTaskScopeLabel(task)
+        );
+        const rootLabel = escapeHtml(getRootExportLabel(task.includeRootActive, task.includeRootArchived));
+        const nextRun = escapeHtml(formatAutoDriveTaskDateTime(getAutoDriveTaskScheduledNextRunAt(task)));
+        const lastSuccess = escapeHtml(formatAutoDriveTaskDateTime(task.lastSuccessAt));
+        const lastError = normalizeStringValue(task.lastError, false);
+        const intervalMinutes = Math.max(
+            AUTO_DRIVE_MIN_INTERVAL_MINUTES,
+            Math.floor(Number(task.intervalMinutes) || AUTO_DRIVE_DEFAULT_INTERVAL_MINUTES)
+        );
+        const lastErrorMeta = lastError
+            ? `<div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskLastError'))}</span><span class="cgue-auto-task-meta-value">${escapeHtml(lastError)}</span></div>`
+            : '';
+        return `
+            <div class="cgue-auto-task-meta">
+                <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskMode'))}</span><span class="cgue-auto-task-meta-value">${scope}</span></div>
+                <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskInterval'))}</span><span class="cgue-auto-task-meta-value">${escapeHtml(String(intervalMinutes))}</span></div>
+                <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskRoots'))}</span><span class="cgue-auto-task-meta-value">${rootLabel}</span></div>
+                <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskLastSuccess'))}</span><span class="cgue-auto-task-meta-value">${lastSuccess}</span></div>
+                <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskNextRun'))}</span><span class="cgue-auto-task-meta-value">${nextRun}</span></div>
+                ${lastErrorMeta}
+            </div>
+        `;
     };
 
     function renderAutoDriveTaskItem(task) {
         if (!task) return '';
         const taskId = escapeHtml(task.id);
-        const label = escapeHtml(getAutoDriveTaskLabel(task));
-        const expanded = isAutoDriveTaskExpanded(task.id);
+        const scope = escapeHtml(getAutoDriveTaskScopeLabel(task));
+        const scopeIcon = task?.mode === 'team' ? TEAM_TITLE_ICON : PERSONAL_TITLE_ICON;
+        const scopeIconClass = task?.mode === 'team' ? 'cgue-icon-team' : 'cgue-icon-personal';
         const statusKey = getAutoDriveTaskStatusKey(task);
         const statusText = escapeHtml(getAutoDriveTaskStatusLabel(task));
-        const scope = escapeHtml(getAutoDriveTaskScopeLabel(task));
-        const rootLabel = escapeHtml(getRootExportLabel(task.includeRootActive, task.includeRootArchived));
-        const nextRun = escapeHtml(formatAutoDriveTaskDateTime(getAutoDriveTaskScheduledNextRunAt(task)));
-        const lastSuccess = escapeHtml(formatAutoDriveTaskDateTime(task.lastSuccessAt));
-        const lastError = normalizeStringValue(task.lastError, false);
-        const expandLabel = expanded ? t('autoSyncTaskCollapse') : t('autoSyncTaskExpand');
-        const lastErrorMeta = lastError
-            ? `<div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskLastError'))}</span><span class="cgue-auto-task-meta-value">${escapeHtml(lastError)}</span></div>`
-            : '';
         const intervalMinutes = Math.max(
             AUTO_DRIVE_MIN_INTERVAL_MINUTES,
             Math.floor(Number(task.intervalMinutes) || AUTO_DRIVE_DEFAULT_INTERVAL_MINUTES)
         );
         return `
-            <article class="cgue-auto-task" data-task-id="${taskId}" data-expanded="${expanded ? 'true' : 'false'}">
-                <div class="cgue-auto-task-summary">
-                    <strong title="${label}">${label}</strong>
-                    <span class="cgue-auto-task-status" data-status="${statusKey}"><span class="cgue-auto-task-status-dot"></span>${statusText}</span>
-                    <button class="cgue-auto-task-expand" type="button" data-auto-drive-action="toggle-expand" data-task-id="${taskId}" aria-expanded="${expanded ? 'true' : 'false'}" aria-label="${escapeHtml(expandLabel)}" title="${escapeHtml(expandLabel)}">
-                        <span class="cgue-auto-task-caret">▼</span>
-                    </button>
-                </div>
-                <div class="cgue-auto-task-body">
-                    <div class="cgue-auto-task-actions">
-                        <button class="cgue-btn cgue-btn-ghost" type="button" data-auto-drive-action="run" data-task-id="${taskId}">${t('autoSyncRunNow')}</button>
-                        <button class="cgue-btn cgue-btn-ghost" type="button" data-auto-drive-action="edit" data-task-id="${taskId}">${t('autoSyncEditTask')}</button>
-                        <button class="cgue-btn cgue-btn-ghost" type="button" data-auto-drive-action="toggle" data-task-id="${taskId}">${getAutoDriveTaskToggleLabel(task)}</button>
-                        <button class="cgue-btn cgue-btn-ghost cgue-btn-danger" type="button" data-auto-drive-action="delete" data-task-id="${taskId}">${t('autoSyncDeleteTask')}</button>
-                    </div>
-                    <div class="cgue-auto-task-meta">
-                        <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskMode'))}</span><span class="cgue-auto-task-meta-value">${scope}</span></div>
-                        <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskInterval'))}</span><span class="cgue-auto-task-meta-value">${escapeHtml(String(intervalMinutes))}</span></div>
-                        <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskRoots'))}</span><span class="cgue-auto-task-meta-value">${rootLabel}</span></div>
-                        <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskLastSuccess'))}</span><span class="cgue-auto-task-meta-value">${lastSuccess}</span></div>
-                        <div class="cgue-auto-task-meta-item"><span class="cgue-auto-task-meta-label">${escapeHtml(t('autoSyncTaskNextRun'))}</span><span class="cgue-auto-task-meta-value">${nextRun}</span></div>
-                        ${lastErrorMeta}
-                    </div>
-                </div>
-            </article>
+            <button
+                class="cgue-auto-task cgue-auto-task-entry"
+                type="button"
+                data-auto-drive-action="open-detail"
+                data-task-id="${taskId}"
+                aria-label="${escapeHtml(t('autoSyncTaskOpen'))}"
+                title="${escapeHtml(t('autoSyncTaskOpen'))}"
+            >
+                <span class="cgue-auto-task-entry-layout">
+                    <span class="cgue-auto-task-entry-top">
+                        <span class="cgue-auto-task-title-icon ${scopeIconClass}" aria-hidden="true">${scopeIcon}</span>
+                        <span class="cgue-auto-task-entry-scope">${scope}</span>
+                    </span>
+                    <span class="cgue-auto-task-entry-bottom">
+                        <span class="cgue-auto-task-preview-item">${escapeHtml(t('autoSyncTaskInterval'))}: ${escapeHtml(String(intervalMinutes))}</span>
+                        <span class="cgue-auto-task-status" data-status="${statusKey}"><span class="cgue-auto-task-status-dot"></span>${statusText}</span>
+                    </span>
+                </span>
+            </button>
         `;
+    }
+
+    function renderAutoDriveTaskDetail() {
+        const task = getCurrentAutoDriveEditingTask();
+        const taskId = escapeHtml(task?.id || '');
+        const label = escapeHtml(task ? getAutoDriveTaskLabel(task) : t('autoSyncCreateTaskTitle'));
+        const scopeIcon = task?.mode === 'team' ? TEAM_TITLE_ICON : PERSONAL_TITLE_ICON;
+        const scopeIconClass = task?.mode === 'team' ? 'cgue-icon-team' : 'cgue-icon-personal';
+        const statusKey = task ? getAutoDriveTaskStatusKey(task) : '';
+        const statusText = task ? escapeHtml(getAutoDriveTaskStatusLabel(task)) : '';
+        const editLabel = escapeHtml(t('autoSyncEditTask'));
+        const runLabel = escapeHtml(t('autoSyncRunNow'));
+        const toggleLabel = task ? escapeHtml(getAutoDriveTaskToggleLabel(task)) : '';
+        const deleteLabel = escapeHtml(t('autoSyncDeleteTask'));
+        const toggleState = task?.paused === true ? 'resume' : 'pause';
+        const detailCard = task
+            ? `
+                <article class="cgue-auto-task cgue-auto-task-detail-card" data-task-id="${taskId}">
+                    <div class="cgue-auto-task-summary cgue-auto-task-summary-static">
+                        <div class="cgue-auto-task-title">
+                            <span class="cgue-auto-task-title-icon ${scopeIconClass}" aria-hidden="true">${scopeIcon}</span>
+                            <strong title="${label}">${label}</strong>
+                        </div>
+                    </div>
+                    <div class="cgue-auto-task-body cgue-auto-task-body-static">
+                        <div class="cgue-auto-task-actions">
+                            <button class="cgue-btn cgue-btn-ghost cgue-auto-task-icon-btn cgue-auto-task-run-btn" type="button" data-auto-drive-action="run" data-task-id="${taskId}" data-selected="false" aria-label="${runLabel}" title="${runLabel}">
+                                <span class="cgue-auto-task-icon">${AUTO_DRIVE_RUN_NOW_ICON}</span>
+                            </button>
+                            <button class="cgue-btn cgue-btn-ghost cgue-auto-task-icon-btn cgue-auto-task-toggle-btn" type="button" data-auto-drive-action="toggle" data-task-id="${taskId}" data-toggle-state="${toggleState}" data-selected="false" aria-label="${toggleLabel}" title="${toggleLabel}">
+                                <span class="cgue-auto-task-icon">${getAutoDriveTaskToggleIcon(task)}</span>
+                            </button>
+                            <button class="cgue-btn cgue-btn-ghost cgue-auto-task-icon-btn cgue-auto-task-edit-btn" type="button" data-auto-drive-action="edit" data-task-id="${taskId}" data-selected="false" aria-label="${editLabel}" title="${editLabel}">
+                                <span class="cgue-auto-task-icon">${AUTO_DRIVE_EDIT_ICON}</span>
+                            </button>
+                            <button class="cgue-btn cgue-btn-ghost cgue-auto-task-icon-btn cgue-auto-task-delete-btn" type="button" data-auto-drive-action="delete" data-task-id="${taskId}" data-selected="false" aria-label="${deleteLabel}" title="${deleteLabel}">
+                                <span class="cgue-auto-task-icon">${AUTO_DRIVE_DELETE_ICON}</span>
+                            </button>
+                            <span class="cgue-auto-task-status" data-status="${statusKey}"><span class="cgue-auto-task-status-dot"></span>${statusText}</span>
+                        </div>
+                        ${renderAutoDriveTaskMetaGrid(task, { detailView: true })}
+                    </div>
+                </article>
+            `
+            : '';
+        return `<div class="cgue-auto-task-detail">${detailCard}</div>`;
     }
 
     function renderAutoDriveTaskEditor() {
         if (state.autoDrive.editorOpen !== true) return '';
         const availableModes = getAvailableAutoDriveModes(state.autoDrive.editingId);
+        const currentTask = getCurrentAutoDriveEditingTask();
         if (!availableModes.personalAvailable && !availableModes.teamAvailable) {
             return '';
         }
@@ -5961,7 +8033,6 @@
         }
         const isTeam = mode === 'team';
         const accountReady = state.autoDrive.accountStatus === 'ready' && !!state.autoDrive.accountKey;
-        const heading = state.autoDrive.editingId ? t('autoSyncEditTask') : t('autoSyncCreateTask');
         const availableWorkspaceIds = availableModes.availableWorkspaceIds;
         const resolvedWorkspaceId = isTeam
             ? (normalizeStringValue(form.workspaceId, false) || getSuggestedAutoDriveWorkspaceId(state.autoDrive.editingId))
@@ -5973,6 +8044,8 @@
         const statusText = accountReady
             ? scopePreview
             : `${scopePreview} · ${state.autoDrive.accountError || t('autoSyncAccountMissing')}`;
+        const canSaveAndRun = accountReady;
+        const showCancel = true;
         const workspaceListId = 'cgue-auto-task-workspace-options';
         const workspaceOptions = availableWorkspaceIds.length > 0
             ? `
@@ -5984,73 +8057,74 @@
             `
             : '';
         return `
-            <div class="cgue-auto-editor">
-                <h3>${heading}</h3>
-                <div class="cgue-auto-editor-grid">
-                    ${showModeSelector ? `
-                        <label>
-                            <span class="cgue-field-label">${t('autoSyncTaskMode')}</span>
-                            <select id="cgue-auto-task-mode" class="cgue-input">
-                                ${availableModes.personalAvailable ? `<option value="personal" ${!isTeam ? 'selected' : ''}>${t('autoSyncTaskModePersonal')}</option>` : ''}
-                                ${availableModes.teamAvailable ? `<option value="team" ${isTeam ? 'selected' : ''}>${t('autoSyncTaskModeTeam')}</option>` : ''}
-                            </select>
-                        </label>
-                    ` : `<input id="cgue-auto-task-mode" type="hidden" value="${escapeHtml(mode)}">`}
-                    ${isTeam ? `
-                        <label>
-                            <span class="cgue-field-label">${t('autoSyncTaskWorkspace')}</span>
-                            <input id="cgue-auto-task-workspace" class="cgue-input" type="text" autocomplete="off" spellcheck="false" value="${escapeHtml(resolvedWorkspaceId || '')}" placeholder="${escapeHtml(t('workspaceManualPlaceholder'))}" ${availableWorkspaceIds.length > 0 ? `list="${workspaceListId}"` : ''}>
-                            ${workspaceOptions}
-                        </label>
-                    ` : ''}
-                    <label>
-                        <span class="cgue-field-label">${t('autoSyncTaskLabel')}</span>
-                        <input id="cgue-auto-task-label" class="cgue-input" type="text" autocomplete="off" spellcheck="false" placeholder="${t('autoSyncTaskLabelPlaceholder')}" value="${escapeHtml(form.label || '')}">
-                    </label>
-                    <label>
-                        <span class="cgue-field-label">${t('autoSyncTaskInterval')}</span>
-                        <input id="cgue-auto-task-interval" class="cgue-input" type="number" min="${AUTO_DRIVE_MIN_INTERVAL_MINUTES}" step="1" value="${escapeHtml(String(form.intervalMinutes))}">
-                    </label>
-                </div>
-                <div class="cgue-auto-editor-options">
-                    <div class="cgue-auto-editor-options-column">
-                        <label class="cgue-toggle">
-                            <input id="cgue-auto-task-root-active" type="checkbox" ${form.includeRootActive ? 'checked' : ''}>
-                            <span class="cgue-toggle-track"></span>
-                            <span class="cgue-toggle-label">${t('rootActiveShort')}</span>
-                        </label>
-                        <label class="cgue-toggle">
-                            <input id="cgue-auto-task-root-archived" type="checkbox" ${form.includeRootArchived ? 'checked' : ''}>
-                            <span class="cgue-toggle-track"></span>
-                            <span class="cgue-toggle-label">${t('rootArchivedShort')}</span>
-                        </label>
+            <div class="cgue-auto-task-detail">
+                <article class="cgue-auto-task cgue-auto-task-detail-card cgue-auto-editor-card"${state.autoDrive.editingId ? ` data-task-id="${escapeHtml(state.autoDrive.editingId)}"` : ''}>
+                    <div class="cgue-auto-task-body cgue-auto-task-body-static">
+                        <div class="cgue-auto-editor">
+                            <div class="cgue-auto-editor-grid">
+                                ${showModeSelector ? `
+                                    <label>
+                                        <span class="cgue-field-label">${t('autoSyncTaskMode')}</span>
+                                        <select id="cgue-auto-task-mode" class="cgue-input">
+                                            ${availableModes.personalAvailable ? `<option value="personal" ${!isTeam ? 'selected' : ''}>${t('autoSyncTaskModePersonal')}</option>` : ''}
+                                            ${availableModes.teamAvailable ? `<option value="team" ${isTeam ? 'selected' : ''}>${t('autoSyncTaskModeTeam')}</option>` : ''}
+                                        </select>
+                                    </label>
+                                ` : `<input id="cgue-auto-task-mode" type="hidden" value="${escapeHtml(mode)}">`}
+                                ${isTeam ? `
+                                    <label>
+                                        <span class="cgue-field-label">${t('autoSyncTaskWorkspace')}</span>
+                                        <input id="cgue-auto-task-workspace" class="cgue-input" type="text" autocomplete="off" spellcheck="false" value="${escapeHtml(resolvedWorkspaceId || '')}" placeholder="${escapeHtml(t('workspaceManualPlaceholder'))}" ${availableWorkspaceIds.length > 0 ? `list="${workspaceListId}"` : ''}>
+                                        ${workspaceOptions}
+                                    </label>
+                                ` : ''}
+                                <label>
+                                    <span class="cgue-field-label">${t('autoSyncTaskLabel')}</span>
+                                    <input id="cgue-auto-task-label" class="cgue-input" type="text" autocomplete="off" spellcheck="false" placeholder="${t('autoSyncTaskLabelPlaceholder')}" value="${escapeHtml(form.label || '')}">
+                                </label>
+                                <label>
+                                    <span class="cgue-field-label">${t('autoSyncTaskInterval')}</span>
+                                    <input id="cgue-auto-task-interval" class="cgue-input" type="number" min="${AUTO_DRIVE_MIN_INTERVAL_MINUTES}" step="1" value="${escapeHtml(String(form.intervalMinutes))}">
+                                </label>
+                            </div>
+                            <div class="cgue-auto-editor-options">
+                                <div class="cgue-auto-editor-options-column">
+                                    <label class="cgue-toggle">
+                                        <span class="cgue-toggle-label">${t('rootActiveShort')}</span>
+                                        <input id="cgue-auto-task-root-active" type="checkbox" ${form.includeRootActive ? 'checked' : ''}>
+                                        <span class="cgue-toggle-track"></span>
+                                    </label>
+                                    <label class="cgue-toggle">
+                                        <span class="cgue-toggle-label">${t('rootArchivedShort')}</span>
+                                        <input id="cgue-auto-task-root-archived" type="checkbox" ${form.includeRootArchived ? 'checked' : ''}>
+                                        <span class="cgue-toggle-track"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="cgue-drive-actions">
+                                <span id="cgue-auto-task-status" class="cgue-status">${escapeHtml(statusText)}</span>
+                                <div class="cgue-drive-action-buttons">
+                                    ${showCancel ? `<button id="cgue-auto-task-cancel" class="cgue-btn cgue-btn-ghost" type="button">${t('autoSyncCancelEdit')}</button>` : ''}
+                                    <div class="cgue-drive-action-buttons-main">
+                                        <button id="cgue-auto-task-save" class="cgue-btn" type="button" ${accountReady ? '' : 'disabled'}>${t('autoSyncSaveTask')}</button>
+                                        <button id="cgue-auto-task-save-run" class="cgue-btn cgue-primary" type="button" ${canSaveAndRun ? '' : 'disabled'}>${t('autoSyncSaveAndRunNow')}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="cgue-auto-editor-options-column">
-                        <label class="cgue-toggle">
-                            <input id="cgue-auto-task-enabled" type="checkbox" ${form.enabled ? 'checked' : ''}>
-                            <span class="cgue-toggle-track"></span>
-                            <span class="cgue-toggle-label">${t('autoSyncTaskEnabled')}</span>
-                        </label>
-                        <label class="cgue-toggle">
-                            <input id="cgue-auto-task-run-on-startup" type="checkbox" ${form.runOnStartup ? 'checked' : ''}>
-                            <span class="cgue-toggle-track"></span>
-                            <span class="cgue-toggle-label">${t('autoSyncRunOnStartup')}</span>
-                        </label>
-                    </div>
-                </div>
-                <div class="cgue-drive-actions">
-                    <span id="cgue-auto-task-status" class="cgue-status">${escapeHtml(statusText)}</span>
-                    <button id="cgue-auto-task-cancel" class="cgue-btn cgue-btn-ghost" type="button">${t('autoSyncCancelEdit')}</button>
-                    <button id="cgue-auto-task-save" class="cgue-btn cgue-primary" type="button" ${accountReady ? '' : 'disabled'}>${t('autoSyncSaveTask')}</button>
-                </div>
+                </article>
             </div>
         `;
     }
 
-    function renderAutoDriveSection() {
+    function renderAutoDriveSection(options = {}) {
+        const standalone = options.standalone === true;
+        const showingTaskDetail = options.detailView === true;
+        const isolatedTaskView = showingTaskDetail === true;
         const accountReady = state.autoDrive.accountStatus === 'ready' && !!state.autoDrive.accountKey;
         const accountLoading = state.autoDrive.accountStatus === 'loading';
-        const driveEnabled = state.backupTargets.drive === true;
+        const driveEnabled = standalone || state.backupTargets.drive === true;
         const availableModes = getAvailableAutoDriveModes('');
         const canAddTask = availableModes.personalAvailable || availableModes.teamAvailable;
         const accountText = accountLoading
@@ -6060,31 +8134,50 @@
                 : (state.autoDrive.accountError || t('autoSyncAccountMissing'));
         const dotClass = accountReady ? '' : ' offline';
         const tasks = sortAutoDriveTasks(state.autoDrive.tasks || []);
-        const taskList = tasks.length > 0
-            ? tasks.map((task) => renderAutoDriveTaskItem(task)).join('')
-            : `<div class="cgue-auto-sync-empty">${t('autoSyncNoTasks')}</div>`;
+        const taskContent = showingTaskDetail
+            ? (state.autoDrive.editorOpen === true ? renderAutoDriveTaskEditor() : renderAutoDriveTaskDetail())
+            : (
+                tasks.length > 0
+                    ? `<div class="cgue-auto-task-list">${tasks.map((task) => renderAutoDriveTaskItem(task)).join('')}</div>`
+                    : `<div class="cgue-auto-sync-empty">${t('autoSyncNoTasks')}</div>`
+            );
+        if (isolatedTaskView) {
+            return `
+                <section
+                    id="cgue-auto-drive-section"
+                    class="cgue-backup cgue-auto-sync cgue-auto-sync-standalone cgue-auto-sync-task-only"
+                    data-visible="${driveEnabled ? 'true' : 'false'}"
+                    data-variant="${standalone ? 'standalone' : 'embedded'}"
+                >
+                    ${taskContent}
+                </section>
+            `;
+        }
         return `
-            <section id="cgue-auto-drive-section" class="cgue-backup cgue-auto-sync" data-visible="${driveEnabled ? 'true' : 'false'}">
+            <section
+                id="cgue-auto-drive-section"
+                class="cgue-backup cgue-auto-sync${standalone ? ' cgue-auto-sync-standalone' : ''}"
+                data-visible="${driveEnabled ? 'true' : 'false'}"
+                data-variant="${standalone ? 'standalone' : 'embedded'}"
+            >
                 <div class="cgue-auto-sync-header">
+                    <div class="cgue-auto-sync-account">
+                        <div class="cgue-auto-sync-account-main">
+                            <span class="cgue-auto-sync-account-dot${dotClass}"></span>
+                            <span class="cgue-auto-sync-account-text">${escapeHtml(accountText)}</span>
+                        </div>
+                        <button id="cgue-auto-drive-refresh" class="cgue-btn cgue-btn-ghost cgue-auto-task-icon-btn cgue-auto-sync-refresh-btn" type="button" aria-label="${escapeHtml(t('autoSyncRefreshAccount'))}" title="${escapeHtml(t('autoSyncRefreshAccount'))}"><span class="cgue-auto-task-icon">${AUTO_DRIVE_REFRESH_ICON}</span></button>
+                    </div>
                     <div class="cgue-auto-sync-title-row">
                         <div class="cgue-auto-sync-title-main">
                             <h3>${t('autoSyncTitle')}</h3>
-                            <details class="cgue-auto-sync-tip">
-                                <summary aria-label="${escapeHtml(t('autoSyncDescSummary'))}">?</summary>
-                                <div class="cgue-auto-sync-tip-body">${escapeHtml(t('autoSyncDesc'))}</div>
-                            </details>
                         </div>
                         <div class="cgue-auto-sync-actions">
-                            <button id="cgue-auto-drive-refresh" class="cgue-btn cgue-btn-ghost" type="button">${t('autoSyncRefreshAccount')}</button>
-                            ${canAddTask ? `<button id="cgue-auto-drive-add-task" class="cgue-btn cgue-btn-ghost" type="button">${t('autoSyncAddTask')}</button>` : ''}
+                            ${!showingTaskDetail && canAddTask ? `<button id="cgue-auto-drive-add-task" class="cgue-btn cgue-btn-ghost cgue-auto-task-icon-btn cgue-auto-sync-add-btn" type="button" aria-label="${escapeHtml(t('autoSyncAddTask'))}" title="${escapeHtml(t('autoSyncAddTask'))}"><span class="cgue-auto-task-icon">${AUTO_DRIVE_ADD_TASK_ICON}</span></button>` : ''}
                         </div>
                     </div>
-                    <div class="cgue-auto-sync-account"><span class="cgue-auto-sync-account-dot${dotClass}"></span>${escapeHtml(accountText)}</div>
                 </div>
-                <div class="cgue-auto-task-list">
-                    ${taskList}
-                </div>
-                ${renderAutoDriveTaskEditor()}
+                ${taskContent}
             </section>
         `;
     }
@@ -6097,17 +8190,27 @@
         const clientId = escapeHtml(driveSettings.clientId || '');
         const clientSecret = escapeHtml(driveSettings.clientSecret || '');
         const refreshToken = escapeHtml(driveSettings.refreshToken || '');
+        const localButtonLabel = escapeHtml(t('backupLocalTooltip'));
+        const localButtonShortLabel = escapeHtml(t('backupLocalShort'));
+        const driveButtonLabel = escapeHtml(t('backupDrive'));
+        const driveButtonShortLabel = escapeHtml(t('backupDriveShort'));
 
         return `
             <section class="cgue-backup">
                 <div class="cgue-backup-options" role="radiogroup" aria-label="${t('backupTitle')}">
-                    <label class="cgue-backup-option">
-                        <input id="cgue-backup-local" type="radio" name="cgue-backup-target" value="local" ${localEnabled ? 'checked' : ''}>
-                        <span>${t('backupLocal')}</span>
+                    <label class="cgue-backup-option cgue-backup-option-local" title="${localButtonLabel}" aria-label="${localButtonLabel}">
+                        <input id="cgue-backup-local" type="radio" name="cgue-backup-target" value="local" ${localEnabled ? 'checked' : ''} aria-label="${localButtonLabel}">
+                        <span class="cgue-backup-option-shell" title="${localButtonLabel}">
+                            <span class="cgue-backup-option-icon" aria-hidden="true">${LOCAL_FILE_OPTION_ICON}</span>
+                            <span class="cgue-backup-option-text">${localButtonShortLabel}</span>
+                        </span>
                     </label>
-                    <label class="cgue-backup-option">
-                        <input id="cgue-backup-drive" type="radio" name="cgue-backup-target" value="drive" ${driveEnabled ? 'checked' : ''}>
-                        <span>${t('backupDrive')}</span>
+                    <label class="cgue-backup-option cgue-backup-option-drive" title="${driveButtonLabel}" aria-label="${driveButtonLabel}">
+                        <input id="cgue-backup-drive" type="radio" name="cgue-backup-target" value="drive" ${driveEnabled ? 'checked' : ''} aria-label="${driveButtonLabel}">
+                        <span class="cgue-backup-option-shell" title="${driveButtonLabel}">
+                            <span class="cgue-backup-option-icon" aria-hidden="true">${GOOGLE_DRIVE_OPTION_ICON}</span>
+                            <span class="cgue-backup-option-text">${driveButtonShortLabel}</span>
+                        </span>
                     </label>
                 </div>
                 <div id="cgue-drive-settings-wrap" class="cgue-drive-settings-wrap" data-visible="${driveEnabled ? 'true' : 'false'}">
@@ -6147,7 +8250,6 @@
                     </article>
                 </div>
             </section>
-            ${renderAutoDriveSection()}
         `;
     }
 
@@ -6165,9 +8267,7 @@
             label: section.querySelector('#cgue-auto-task-label')?.value || '',
             intervalMinutes: section.querySelector('#cgue-auto-task-interval')?.value || AUTO_DRIVE_DEFAULT_INTERVAL_MINUTES,
             includeRootActive: section.querySelector('#cgue-auto-task-root-active')?.checked !== false,
-            includeRootArchived: section.querySelector('#cgue-auto-task-root-archived')?.checked !== false,
-            enabled: section.querySelector('#cgue-auto-task-enabled')?.checked !== false,
-            runOnStartup: section.querySelector('#cgue-auto-task-run-on-startup')?.checked !== false
+            includeRootArchived: section.querySelector('#cgue-auto-task-root-archived')?.checked !== false
         });
         if (form.mode === 'team' && !form.workspaceId) {
             form.workspaceId = resolveAutoDriveFormWorkspaceId(form);
@@ -6175,10 +8275,25 @@
         return form;
     }
 
-    function saveAutoDriveTaskFromDialog(dialog) {
+    function syncAutoDriveEditorActionState(section) {
+        if (!section) return;
+        const accountReady = state.autoDrive.accountStatus === 'ready' && !!state.autoDrive.accountKey;
+        const saveBtn = section.querySelector('#cgue-auto-task-save');
+        const saveRunBtn = section.querySelector('#cgue-auto-task-save-run');
+        if (saveBtn) {
+            saveBtn.disabled = !accountReady;
+        }
+        if (saveRunBtn) {
+            saveRunBtn.disabled = !accountReady;
+        }
+    }
+
+    function saveAutoDriveTaskFromDialog(dialog, options = {}) {
         const section = dialog.querySelector('#cgue-auto-drive-section');
         if (!section) return null;
         const accountKey = state.autoDrive.accountKey;
+        const notifyOnSave = options.notifyOnSave !== false;
+        const scheduleAfterSave = options.scheduleAfterSave !== false;
         if (!accountKey) {
             notify('warning', t('autoSyncAccountRequired'));
             return null;
@@ -6207,18 +8322,13 @@
         }
         const baseTask = targetTask || previousTask || {};
         const preservedNextRunAt = getAutoDriveTaskScheduledNextRunAt(baseTask);
-        const previousTaskExpanded = previousTask?.id ? isAutoDriveTaskExpanded(previousTask.id) : false;
         const nextTask = normalizeAutoDriveTask({
             ...baseTask,
             ...form,
-            paused: form.enabled !== false ? baseTask.paused === true : false,
-            nextRunAt: form.enabled !== false
-                ? (preservedNextRunAt != null
-                    ? preservedNextRunAt
-                    : (form.runOnStartup && !baseTask.lastRunAt
-                        ? now
-                        : now + getAutoDriveIntervalMs(form)))
-                : null,
+            paused: baseTask.paused === true,
+            nextRunAt: preservedNextRunAt != null
+                ? preservedNextRunAt
+                : now + getAutoDriveIntervalMs(form),
             createdAt: baseTask.createdAt || now,
             lastRunAt: baseTask.lastRunAt || null,
             lastSuccessAt: baseTask.lastSuccessAt || null,
@@ -6228,20 +8338,20 @@
 
         if (previousTask?.id && previousTask.id !== nextTask.id) {
             deleteAutoDriveTask(accountKey, previousTask.id);
-            setAutoDriveTaskExpanded(previousTask.id, false);
-            if (previousTaskExpanded) {
-                setAutoDriveTaskExpanded(nextTask.id, true);
-            }
         }
-        saveSingleAutoDriveTask(accountKey, nextTask);
+        const savedTask = saveSingleAutoDriveTask(accountKey, nextTask) || nextTask;
         state.autoDrive.tasks = primeAutoDriveTaskSchedules(accountKey, loadAutoDriveTasks(accountKey));
-        state.autoDrive.editorOpen = false;
-        state.autoDrive.editingId = '';
-        state.autoDrive.form = createDefaultAutoTaskForm();
-        notify('success', t('autoSyncTaskSaved'));
+        state.autoDrive.editorOpen = true;
+        state.autoDrive.editingId = savedTask.id;
+        state.autoDrive.form = createDefaultAutoTaskForm(savedTask);
+        if (notifyOnSave) {
+            notify('success', t('autoSyncTaskSaved'));
+        }
         refreshAutoDriveUi();
-        scheduleAutoDriveEvaluation('task-save', 0);
-        return nextTask;
+        if (scheduleAfterSave) {
+            scheduleAutoDriveEvaluation('task-save', 0);
+        }
+        return savedTask;
     }
 
     function bindAutoDriveControls(dialog) {
@@ -6251,6 +8361,7 @@
         dialog.__refreshAutoDriveSection = () => {
             const current = dialog.querySelector('#cgue-auto-drive-section');
             if (!current) return;
+            const detailStepOpen = dialog.dataset.cgueStep === 'auto-sync-task';
             if (state.autoDrive.editorOpen === true && !state.autoDrive._skipFormRead) {
                 const editorPresent = current.querySelector('#cgue-auto-task-mode');
                 if (editorPresent) {
@@ -6258,7 +8369,25 @@
                 }
             }
             state.autoDrive._skipFormRead = false;
-            current.outerHTML = renderAutoDriveSection();
+            if (detailStepOpen) {
+                const editingId = normalizeStringValue(state.autoDrive.editingId, false);
+                if (!editingId && state.autoDrive.editorOpen !== true) {
+                    renderAutoSyncStep(dialog);
+                    return;
+                }
+                if (editingId && !getCurrentAutoDriveEditingTask()) {
+                    closeAutoDriveTaskEditor({ refreshUi: false });
+                    renderAutoSyncStep(dialog);
+                    return;
+                }
+                renderAutoSyncTaskStep(dialog);
+                return;
+            }
+            const standalone = current.dataset.variant === 'standalone';
+            current.outerHTML = renderAutoDriveSection({
+                standalone,
+                detailView: false
+            });
             bindAutoDriveControls(dialog);
         };
 
@@ -6290,7 +8419,8 @@
         const addBtn = section.querySelector('#cgue-auto-drive-add-task');
         if (addBtn) {
             addBtn.addEventListener('click', () => {
-                openAutoDriveTaskEditor();
+                openAutoDriveTaskEditor(null, { refreshUi: false });
+                renderAutoSyncTaskStep(dialog);
             });
         }
 
@@ -6324,9 +8454,7 @@
             '#cgue-auto-task-label',
             '#cgue-auto-task-interval',
             '#cgue-auto-task-root-active',
-            '#cgue-auto-task-root-archived',
-            '#cgue-auto-task-enabled',
-            '#cgue-auto-task-run-on-startup'
+            '#cgue-auto-task-root-archived'
         ].forEach((selector) => {
             const input = section.querySelector(selector);
             if (!input) return;
@@ -6335,13 +8463,22 @@
                 : 'change';
             input.addEventListener(eventName, () => {
                 state.autoDrive.form = readAutoDriveTaskFormFromSection(section);
+                syncAutoDriveEditorActionState(section);
             });
         });
+
+        syncAutoDriveEditorActionState(section);
 
         const cancelBtn = section.querySelector('#cgue-auto-task-cancel');
         if (cancelBtn) {
             cancelBtn.addEventListener('click', () => {
-                closeAutoDriveTaskEditor();
+                if (getCurrentAutoDriveEditingTask()) {
+                    closeAutoDriveTaskEditor({ refreshUi: false, preserveTask: true });
+                    renderAutoSyncTaskStep(dialog);
+                    return;
+                }
+                closeAutoDriveTaskEditor({ refreshUi: false });
+                renderAutoSyncStep(dialog);
             });
         }
 
@@ -6349,6 +8486,22 @@
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
                 saveAutoDriveTaskFromDialog(dialog);
+            });
+        }
+
+        const saveRunBtn = section.querySelector('#cgue-auto-task-save-run');
+        if (saveRunBtn) {
+            saveRunBtn.addEventListener('click', async () => {
+                const savedTask = saveAutoDriveTaskFromDialog(dialog, {
+                    notifyOnSave: false,
+                    scheduleAfterSave: false
+                });
+                if (!savedTask?.id) return;
+                try {
+                    await runAutoDriveTaskNow(savedTask.id);
+                } finally {
+                    scheduleAutoDriveEvaluation('task-run', 0);
+                }
             });
         }
 
@@ -6361,14 +8514,15 @@
                 const task = getAutoTaskById(accountKey, taskId);
                 if (!task) return;
 
-                if (action === 'toggle-expand') {
-                    setAutoDriveTaskExpanded(taskId, !isAutoDriveTaskExpanded(taskId));
-                    refreshAutoDriveUi();
+                if (action === 'open-detail') {
+                    openAutoDriveTaskDetail(task, { refreshUi: false });
+                    renderAutoSyncTaskStep(dialog);
                     return;
                 }
 
                 if (action === 'edit') {
-                    openAutoDriveTaskEditor(task);
+                    openAutoDriveTaskEditor(task, { refreshUi: false });
+                    renderAutoSyncTaskStep(dialog);
                     return;
                 }
 
@@ -6376,11 +8530,11 @@
                     const confirmed = window.confirm(t('autoSyncDeleteConfirm', getAutoDriveTaskLabel(task)));
                     if (!confirmed) return;
                     deleteAutoDriveTask(accountKey, taskId);
-                    setAutoDriveTaskExpanded(taskId, false);
+                    state.autoDrive.tasks = primeAutoDriveTaskSchedules(accountKey, loadAutoDriveTasks(accountKey));
                     if (state.autoDrive.editingId === taskId) {
-                        closeAutoDriveTaskEditor();
+                        closeAutoDriveTaskEditor({ refreshUi: false });
+                        renderAutoSyncStep(dialog);
                     } else {
-                        state.autoDrive.tasks = primeAutoDriveTaskSchedules(accountKey, loadAutoDriveTasks(accountKey));
                         refreshAutoDriveUi();
                     }
                     notify('success', t('autoSyncTaskDeleted'));
@@ -6390,14 +8544,7 @@
 
                 if (action === 'toggle') {
                     const now = Date.now();
-                    if (task.enabled === false) {
-                        updateAutoDriveTaskState(accountKey, taskId, {
-                            enabled: true,
-                            paused: false,
-                            pausedNextRunAt: null,
-                            nextRunAt: now
-                        });
-                    } else if (task.paused === true) {
+                    if (task.paused === true) {
                         updateAutoDriveTaskState(accountKey, taskId, {
                             paused: false,
                             pausedNextRunAt: null,
@@ -6425,6 +8572,11 @@
     }
 
     function openBackupSettingsDialog() {
+        const exportDialog = document.getElementById(DIALOG_ID);
+        if (exportDialog) {
+            renderBackupStep(exportDialog);
+            return;
+        }
         if (document.getElementById(BACKUP_OVERLAY_ID)) return;
         const overlay = document.createElement('div');
         overlay.id = BACKUP_OVERLAY_ID;
@@ -6448,7 +8600,12 @@
         dialog.innerHTML = `
             <div class="cgue-dialog-header">
                 <h2>${t('backupTitle')}</h2>
-                <button id="cgue-backup-close" class="cgue-icon-btn" type="button" aria-label="${t('close')}">×</button>
+                <button id="cgue-backup-close" class="cgue-icon-btn" type="button" aria-label="${t('close')}" title="${t('close')}">
+                    <svg class="cgue-close-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                        <line x1="4" y1="4" x2="12" y2="12"></line>
+                        <line x1="12" y1="4" x2="4" y2="12"></line>
+                    </svg>
+                </button>
             </div>
             ${renderBackupSection()}
         `;
@@ -6552,10 +8709,6 @@
             if (settingsWrap) {
                 settingsWrap.dataset.visible = useDrive ? 'true' : 'false';
             }
-            const autoDriveSection = dialog.querySelector('#cgue-auto-drive-section');
-            if (autoDriveSection) {
-                autoDriveSection.dataset.visible = useDrive ? 'true' : 'false';
-            }
             checkDriveConfig();
         };
 
@@ -6617,32 +8770,130 @@
         if (settingsWrap && driveToggle) {
             settingsWrap.dataset.visible = driveToggle.checked ? 'true' : 'false';
         }
+    }
 
+    function renderBackupStep(dialog) {
+        setDialogStepVariant(dialog, 'backup');
+        dialog.dataset.cgueStep = 'backup';
+        dialog.innerHTML = `
+            <div class="cgue-step-hero">
+                <span class="cgue-step-hero-icon" aria-hidden="true">${STORAGE_TITLE_ICON}</span>
+                <div class="cgue-step-hero-copy">
+                    <h2>${t('backupTitle')}</h2>
+                    <p>${t('backupDesc')}</p>
+                </div>
+            </div>
+            ${renderBackupSection()}
+            <div class="cgue-actions">
+                <button id="cgue-back" class="cgue-btn">${t('back')}</button>
+            </div>
+        `;
+
+        dialog.querySelector('#cgue-back').onclick = () => returnToScopeStep(dialog);
+        bindBackupControls(dialog);
+    }
+
+    function renderAutoSyncTaskStep(dialog) {
+        setDialogStepVariant(dialog);
+        dialog.dataset.cgueStep = 'auto-sync-task';
+        const currentTask = getCurrentAutoDriveEditingTask();
+        const isEditing = state.autoDrive.editorOpen === true;
+        const showDialogActions = !isEditing;
+        const heading = currentTask
+            ? (isEditing ? t('autoSyncEditTaskTitle') : t('autoSyncTaskDetails'))
+            : t('autoSyncCreateTaskTitle');
+        dialog.innerHTML = `
+            <div class="cgue-step-hero">
+                <span class="cgue-step-hero-icon" aria-hidden="true">${AUTO_SYNC_PAGE_ICON}</span>
+                <div class="cgue-step-hero-copy">
+                    <h2>${heading}</h2>
+                </div>
+            </div>
+            ${renderAutoDriveSection({ standalone: true, detailView: true })}
+            ${showDialogActions ? `
+                <div class="cgue-actions">
+                    <button id="cgue-back" class="cgue-btn">${t('back')}</button>
+                </div>
+            ` : ''}
+        `;
+
+        const backBtn = dialog.querySelector('#cgue-back');
+        if (backBtn) {
+            backBtn.onclick = () => {
+                if (state.autoDrive.editorOpen === true && currentTask) {
+                    closeAutoDriveTaskEditor({ refreshUi: false, preserveTask: true });
+                    renderAutoSyncTaskStep(dialog);
+                    return;
+                }
+                closeAutoDriveTaskEditor({ refreshUi: false });
+                renderAutoSyncStep(dialog);
+            };
+        }
+        bindAutoDriveControls(dialog);
+    }
+
+    function renderAutoSyncStep(dialog) {
+        setDialogStepVariant(dialog);
+        dialog.dataset.cgueStep = 'auto-sync';
+        dialog.innerHTML = `
+            <div class="cgue-step-hero">
+                <span class="cgue-step-hero-icon" aria-hidden="true">${AUTO_SYNC_PAGE_ICON}</span>
+                <div class="cgue-step-hero-copy">
+                    <h2>${t('autoSyncPageTitle')}</h2>
+                    <div class="cgue-step-hero-subline">
+                        <span class="cgue-step-hero-subline-text">${t('autoSyncPageDesc')}</span>
+                        <div class="cgue-auto-sync-tip">
+                            <button class="cgue-auto-sync-tip-trigger" type="button" aria-label="${escapeHtml(t('autoSyncPageHintLabel'))}" aria-describedby="cgue-auto-sync-tip-body">?</button>
+                            <div id="cgue-auto-sync-tip-body" class="cgue-auto-sync-tip-body" role="tooltip">${escapeHtml(t('autoSyncPageHintDesc'))}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ${renderAutoDriveSection({ standalone: true, detailView: false })}
+            <div class="cgue-actions">
+                <button id="cgue-back" class="cgue-btn">${t('back')}</button>
+            </div>
+        `;
+
+        dialog.querySelector('#cgue-back').onclick = () => returnToScopeStep(dialog);
         bindAutoDriveControls(dialog);
     }
 
     function renderScopeStep(dialog) {
+        setDialogStepVariant(dialog);
+        dialog.dataset.cgueStep = 'scope';
+        const isRestoreRunning = dialogWorkspaceRestoreState.phase === 'restoring';
         dialog.innerHTML = `
             <div class="cgue-dialog-header">
-                <h2>${t('dialogChooseScope')}</h2>
+                <div class="cgue-dialog-title">
+                    <span class="cgue-dialog-title-icon" aria-hidden="true">${SPACE_TITLE_ICON}</span>
+                    <h2>${t('dialogChooseScope')}</h2>
+                </div>
                 <div class="cgue-header-actions">
+                    <button
+                        id="cgue-open-auto-sync"
+                        class="cgue-header-action-btn cgue-header-action-btn-icon-only"
+                        type="button"
+                        title="${t('autoSyncPageButton')}"
+                        aria-label="${t('autoSyncPageButton')}"
+                        ${isRestoreRunning ? 'disabled' : ''}
+                    >
+                        <span class="cgue-header-action-btn-icon" aria-hidden="true">${AUTO_SYNC_PAGE_ICON}</span>
+                    </button>
                     <button id="${BACKUP_BUTTON_ID}" class="cgue-icon-btn" type="button" title="${t('backupSettingsButton')}" aria-label="${t('backupSettingsButton')}">${getBackupTargetIcon()}</button>
                 </div>
             </div>
-            <div class="cgue-card-list">
-                <button id="cgue-select-personal" class="cgue-card-btn cgue-card-icon-btn">
-                    <span class="cgue-card-icon cgue-icon-personal" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false"><path xmlns="http://www.w3.org/2000/svg" d="M16.585 10a6.585 6.585 0 1 0-10.969 4.912A5.65 5.65 0 0 1 10 12.835c1.767 0 3.345.81 4.383 2.077A6.57 6.57 0 0 0 16.585 10M10 14.165a4.32 4.32 0 0 0-3.305 1.53c.972.565 2.1.89 3.305.89a6.55 6.55 0 0 0 3.303-.89A4.32 4.32 0 0 0 10 14.165M11.835 8.5a1.835 1.835 0 1 0-3.67 0 1.835 1.835 0 0 0 3.67 0m6.08 1.5a7.915 7.915 0 1 1-15.83 0 7.915 7.915 0 0 1 15.83 0m-4.75-1.5a3.165 3.165 0 1 1-6.33 0 3.165 3.165 0 0 1 6.33 0"></path></svg>
-                    </span>
+            ${renderDialogWorkspaceRestoreCallout()}
+            <div class="cgue-card-list" ${isRestoreRunning ? 'aria-busy="true"' : ''}>
+                <button id="cgue-select-personal" class="cgue-card-btn cgue-card-icon-btn" ${isRestoreRunning ? 'disabled' : ''}>
+                    <span class="cgue-card-icon cgue-icon-personal" aria-hidden="true">${PERSONAL_TITLE_ICON}</span>
                     <span class="cgue-card-text">
                         <strong>${t('personalTitle')}</strong>
                         <p>${t('personalDesc')}</p>
                     </span>
                 </button>
-                <button id="cgue-select-team" class="cgue-card-btn cgue-card-icon-btn">
-                    <span class="cgue-card-icon cgue-icon-team" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none" class="h-12 w-12 shrink-0" aria-hidden="true" focusable="false"><circle cx="18" cy="18" r="18" fill="#3c46ff"></circle><path fill-rule="evenodd" clip-rule="evenodd" d="m7.358 14.641 5.056-5.055A2 2 0 0 1 13.828 9h8.343a2 2 0 0 1 1.414.586l5.056 5.055a2 2 0 0 1 .055 2.771l-9.226 9.996a2 2 0 0 1-2.94 0l-9.227-9.996a2 2 0 0 1 .055-2.77Zm6.86-1.939-.426 1.281a2.07 2.07 0 0 1-1.31 1.31l-1.28.426a.296.296 0 0 0 0 .561l1.28.428a2.07 2.07 0 0 1 1.31 1.309l.427 1.28c.09.27.471.27.56 0l.428-1.28a2.07 2.07 0 0 1 1.309-1.31l1.281-.427a.296.296 0 0 0 0-.56l-1.281-.428a2.07 2.07 0 0 1-1.309-1.309l-.427-1.28a.296.296 0 0 0-.561 0z" fill="#fff"></path></svg>
-                    </span>
+                <button id="cgue-select-team" class="cgue-card-btn cgue-card-icon-btn" ${isRestoreRunning ? 'disabled' : ''}>
+                    <span class="cgue-card-icon cgue-icon-team" aria-hidden="true">${TEAM_TITLE_ICON}</span>
                     <span class="cgue-card-text">
                         <strong>${t('teamTitle')}</strong>
                         <p>${t('teamDesc')}</p>
@@ -6650,7 +8901,7 @@
                 </button>
             </div>
             <div class="cgue-actions cgue-actions-end">
-                <button id="cgue-cancel" class="cgue-btn">${t('cancel')}</button>
+                <button id="cgue-close-dialog" class="cgue-btn" type="button" title="${t('close')}" aria-label="${t('close')}">${t('close')}</button>
             </div>
         `;
 
@@ -6660,145 +8911,157 @@
         };
         dialog.querySelector('#cgue-select-team').onclick = () => {
             setScope('team', state.workspaceId);
-            renderTeamStep(dialog);
+            renderModeStep(dialog);
         };
-        dialog.querySelector('#cgue-cancel').onclick = closeDialog;
+        dialog.querySelector('#cgue-close-dialog').onclick = closeDialog;
+        const autoSyncBtn = dialog.querySelector('#cgue-open-auto-sync');
+        if (autoSyncBtn) autoSyncBtn.onclick = () => renderAutoSyncStep(dialog);
         const backupBtn = dialog.querySelector(`#${BACKUP_BUTTON_ID}`);
         if (backupBtn) backupBtn.onclick = openBackupSettingsDialog;
     }
 
-    function renderTeamStep(dialog) {
-        const detectedIds = detectAllWorkspaceIds();
-        dialog.innerHTML = `
-            <h2>${t('teamDialogTitle')}</h2>
-            <div id="cgue-team-body"></div>
-            <div class="cgue-actions">
-                <button id="cgue-back" class="cgue-btn">${t('back')}</button>
-                <button id="cgue-next" class="cgue-btn cgue-primary">${t('next')}</button>
-            </div>
-        `;
+    function returnToScopeStep(dialog) {
+        setDialogWorkspaceRestoreState(getDialogWorkspaceRestoreIdleState(), { refresh: false });
+        renderScopeStep(dialog);
+        void restoreDialogWorkspaceOrigin();
+    }
 
-        const body = dialog.querySelector('#cgue-team-body');
-        if (detectedIds.length > 1) {
-            const callout = document.createElement('div');
-            callout.className = 'cgue-callout info';
-            const prompt = document.createElement('p');
-            prompt.textContent = t('workspaceMultiPrompt');
-            callout.appendChild(prompt);
-
-            const list = document.createElement('div');
-            list.className = 'cgue-workspace-list';
-            detectedIds.forEach((id, index) => {
-                const label = document.createElement('label');
-                const input = document.createElement('input');
-                input.type = 'radio';
-                input.name = 'workspace_id';
-                input.value = id;
-                if (index === 0) input.checked = true;
-                const row = document.createElement('span');
-                row.className = 'cgue-workspace-row';
-                const marker = document.createElement('span');
-                marker.className = 'cgue-workspace-index';
-                const number = document.createElement('span');
-                number.className = 'cgue-workspace-number';
-                number.textContent = `#${index + 1}`;
-                const labelText = document.createElement('span');
-                labelText.className = 'cgue-workspace-label';
-                labelText.textContent = 'ID：';
-                marker.appendChild(number);
-                marker.appendChild(labelText);
-                const code = document.createElement('code');
-                code.textContent = id;
-                label.appendChild(input);
-                row.appendChild(marker);
-                row.appendChild(code);
-                label.appendChild(row);
-                list.appendChild(label);
-            });
-            callout.appendChild(list);
-            body.appendChild(callout);
-        } else if (detectedIds.length === 1) {
-            const callout = document.createElement('div');
-            callout.className = 'cgue-callout success';
-            const row = document.createElement('div');
-            row.className = 'cgue-workspace-row';
-            const marker = document.createElement('span');
-            marker.className = 'cgue-workspace-index';
-            const number = document.createElement('span');
-            number.className = 'cgue-workspace-number';
-            number.textContent = '#1';
-            const labelText = document.createElement('span');
-            labelText.className = 'cgue-workspace-label';
-            labelText.textContent = 'ID：';
-            marker.appendChild(number);
-            marker.appendChild(labelText);
-            const code = document.createElement('code');
-            code.id = 'workspace-id-code';
-            code.textContent = detectedIds[0];
-            row.appendChild(marker);
-            row.appendChild(code);
-            callout.appendChild(row);
-            body.appendChild(callout);
-        } else {
-            const callout = document.createElement('div');
-            callout.className = 'cgue-callout warning';
-            const title = document.createElement('p');
-            title.textContent = t('workspaceMissingTitle');
-            const tip = document.createElement('p');
-            tip.textContent = t('workspaceMissingTip');
-            callout.appendChild(title);
-            callout.appendChild(tip);
-            body.appendChild(callout);
-
-            const label = document.createElement('label');
-            label.textContent = t('workspaceManualLabel');
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.id = 'team-id-input';
-            input.className = 'cgue-input';
-            input.placeholder = t('workspaceManualPlaceholder');
-            body.appendChild(label);
-            body.appendChild(input);
-        }
-
-        dialog.querySelector('#cgue-back').onclick = () => renderScopeStep(dialog);
-        dialog.querySelector('#cgue-next').onclick = () => {
-            let workspaceId = '';
-            const radioChecked = dialog.querySelector('input[name="workspace_id"]:checked');
-            const codeEl = dialog.querySelector('#workspace-id-code');
-            const inputEl = dialog.querySelector('#team-id-input');
-            if (radioChecked) {
-                workspaceId = radioChecked.value;
-            } else if (codeEl) {
-                workspaceId = codeEl.textContent;
-            } else if (inputEl) {
-                workspaceId = inputEl.value.trim();
-            }
-            if (!workspaceId) {
-                notify('warning', t('alertNoWorkspace'));
-                return;
-            }
-            setScope('team', workspaceId);
-            renderModeStep(dialog);
+    function getPendingTeamWorkspaceFormState(dialog) {
+        const selectEl = dialog?.querySelector('#cgue-team-workspace-select');
+        const inputEl = dialog?.querySelector('#team-id-input');
+        const selectedValue = selectEl instanceof HTMLSelectElement
+            ? normalizeStringValue(selectEl.value, false)
+            : '';
+        const manualInputValue = inputEl instanceof HTMLInputElement
+            ? inputEl.value.trim()
+            : '';
+        return {
+            selectedValue,
+            manualInputValue,
+            useManualEntry: selectedValue === TEAM_WORKSPACE_MANUAL_OPTION
         };
     }
 
-    function renderModeStep(dialog) {
-        const scopeLabel = state.scope === 'team' && state.workspaceId
-            ? `<div class="cgue-callout info cgue-scope-summary"><strong>${t('teamTitle')}:</strong><code>${state.workspaceId}</code></div>`
+    function getPendingTeamWorkspaceId(dialog) {
+        const { selectedValue, manualInputValue, useManualEntry } = getPendingTeamWorkspaceFormState(dialog);
+        if (useManualEntry) {
+            return manualInputValue;
+        }
+        if (selectedValue && selectedValue !== TEAM_WORKSPACE_LOADING_OPTION) {
+            return selectedValue;
+        }
+        return normalizeStringValue(state.workspaceId, false);
+    }
+
+    function syncPendingTeamWorkspace(dialog) {
+        const workspaceId = getPendingTeamWorkspaceId(dialog);
+        const normalizedWorkspaceId = normalizeWorkspaceApiId(workspaceId) || normalizeStringValue(workspaceId, false);
+        if (normalizedWorkspaceId) {
+            setScope('team', normalizedWorkspaceId);
+        }
+        return normalizedWorkspaceId;
+    }
+
+    function renderTeamWorkspaceBody(body, detectedIds, options = {}) {
+        if (!body) return;
+
+        const {
+            isLoading = false,
+            preferredWorkspaceId = '',
+            manualInputValue = '',
+            useManualEntry = false
+        } = options;
+        const workspaceIds = mergeWorkspaceIds(detectedIds);
+        const preferredWorkspaceIdRaw = normalizeStringValue(preferredWorkspaceId, false);
+        const preferredWorkspaceIdNormalized = normalizeWorkspaceApiId(preferredWorkspaceIdRaw);
+        const hasDetectedWorkspaces = workspaceIds.length > 0;
+        const shouldUseManualEntry = useManualEntry ||
+            (!hasDetectedWorkspaces && !isLoading) ||
+            Boolean(preferredWorkspaceIdRaw && !workspaceIds.includes(preferredWorkspaceIdNormalized));
+        const selectedWorkspaceId = !shouldUseManualEntry && hasDetectedWorkspaces
+            ? (workspaceIds.includes(preferredWorkspaceIdNormalized) ? preferredWorkspaceIdNormalized : workspaceIds[0])
             : '';
+        const tone = hasDetectedWorkspaces ? 'info' : (isLoading ? 'info' : 'warning');
+        let helperText = '';
+        if (workspaceIds.length > 1) {
+            helperText = t('workspaceMultiPrompt');
+        } else if (!hasDetectedWorkspaces && isLoading) {
+            helperText = t('workspaceDetecting');
+        } else if (!hasDetectedWorkspaces) {
+            helperText = t('workspaceMissingTip');
+        }
+
+        const selectOptions = [];
+        if (!hasDetectedWorkspaces && isLoading) {
+            selectOptions.push(`<option value="${TEAM_WORKSPACE_LOADING_OPTION}" disabled>${escapeHtml(t('workspaceDetecting'))}</option>`);
+        }
+        workspaceIds.forEach((workspaceId) => {
+            const isSelected = !shouldUseManualEntry && workspaceId === selectedWorkspaceId;
+            selectOptions.push(
+                `<option value="${escapeHtml(workspaceId)}" ${isSelected ? 'selected' : ''}>${escapeHtml(workspaceId)}</option>`
+            );
+        });
+        selectOptions.push(
+            `<option value="${TEAM_WORKSPACE_MANUAL_OPTION}" ${shouldUseManualEntry ? 'selected' : ''}>${escapeHtml(t('workspaceSelectManual'))}</option>`
+        );
+
+        body.className = `cgue-callout ${tone} cgue-mode-team-panel`;
+        body.innerHTML = `
+            <span class="cgue-mode-team-icon" aria-hidden="true">${TEAM_WORKSPACE_FIELD_ICON}</span>
+            <div class="cgue-mode-team-content">
+                <div class="cgue-mode-team-copy">
+                    <label class="cgue-mode-field-label" for="cgue-team-workspace-select">${escapeHtml(t('workspaceSelectLabel'))}</label>
+                    ${helperText ? `<p class="cgue-mode-field-hint">${escapeHtml(helperText)}</p>` : ''}
+                </div>
+                <select id="cgue-team-workspace-select" class="cgue-input cgue-select">
+                    ${selectOptions.join('')}
+                </select>
+                <div id="cgue-team-manual-wrap" class="cgue-mode-team-manual" ${shouldUseManualEntry ? '' : 'hidden'}>
+                    <label class="cgue-mode-field-label" for="team-id-input">${escapeHtml(t('workspaceManualLabel'))}</label>
+                    <input
+                        type="text"
+                        id="team-id-input"
+                        class="cgue-input"
+                        placeholder="${escapeHtml(t('workspaceManualPlaceholder'))}"
+                        value="${escapeHtml(manualInputValue || (shouldUseManualEntry ? preferredWorkspaceIdRaw : ''))}"
+                    >
+                </div>
+            </div>
+        `;
+    }
+
+    function renderModeStep(dialog) {
+        state.stepToken += 1;
+        const stepToken = state.stepToken;
+        setDialogStepVariant(dialog);
+        dialog.dataset.cgueStep = 'mode';
+        const titleIcon = state.scope === 'team' ? TEAM_TITLE_ICON : PERSONAL_TITLE_ICON;
+        const titleMarkup = `
+            <div class="cgue-step-hero">
+                <span class="cgue-step-hero-icon" aria-hidden="true">${titleIcon}</span>
+                <div class="cgue-step-hero-copy">
+                    <h2>${t('exportModeTitle')}</h2>
+                    <p>${t('exportModeDesc')}</p>
+                </div>
+            </div>
+        `;
         const exportTargetLabel = getExportTargetLabel();
         const exportAllLabel = t('exportAll', exportTargetLabel);
+        const scopeLabel = state.scope === 'team'
+            ? '<div id="cgue-team-workspace-body"></div>'
+            : '';
 
         dialog.innerHTML = `
-            <h2>${t('exportModeTitle')}</h2>
-            <p>${t('exportModeDesc')}</p>
+            ${titleMarkup}
             ${scopeLabel}
             <div class="cgue-card-list">
                 <div id="cgue-export-all" class="cgue-card-btn cgue-card-row" role="button" tabindex="0">
-                    <div class="cgue-card-content">
-                        <strong>${exportAllLabel}</strong>
-                        <p>${t('exportAllDesc')}</p>
+                    <div class="cgue-card-mode-main">
+                        <span class="cgue-card-icon cgue-icon-export-all" aria-hidden="true">${EXPORT_ALL_OPTION_ICON}</span>
+                        <div class="cgue-card-content">
+                            <strong>${exportAllLabel}</strong>
+                            <p>${t('exportAllDesc')}</p>
+                        </div>
                     </div>
                     <div class="cgue-card-controls">
                         <label class="cgue-toggle">
@@ -6813,9 +9076,12 @@
                         </label>
                     </div>
                 </div>
-                <button id="cgue-export-select" class="cgue-card-btn">
-                    <strong>${t('selectConversations')}</strong>
-                    <p>${t('selectDesc')}</p>
+                <button id="cgue-export-select" class="cgue-card-btn cgue-card-icon-btn">
+                    <span class="cgue-card-icon cgue-icon-select" aria-hidden="true">${SELECT_CONVERSATIONS_OPTION_ICON}</span>
+                    <span class="cgue-card-text">
+                        <strong>${t('selectConversations')}</strong>
+                        <p>${t('selectDesc')}</p>
+                    </span>
                 </button>
             </div>
             <div class="cgue-actions">
@@ -6823,16 +9089,95 @@
             </div>
         `;
 
-        dialog.querySelector('#cgue-back').onclick = () => {
-            if (state.scope === 'team') {
-                renderTeamStep(dialog);
-            } else {
-                renderScopeStep(dialog);
-            }
-        };
+        dialog.querySelector('#cgue-back').onclick = () => returnToScopeStep(dialog);
         const exportAllCard = dialog.querySelector('#cgue-export-all');
         const activeToggle = dialog.querySelector('#cgue-toggle-root-active');
         const archivedToggle = dialog.querySelector('#cgue-toggle-root-archived');
+        const teamWorkspaceBody = state.scope === 'team'
+            ? dialog.querySelector('#cgue-team-workspace-body')
+            : null;
+
+        const bindTeamWorkspaceControls = () => {
+            if (!teamWorkspaceBody) return;
+            const selectEl = dialog.querySelector('#cgue-team-workspace-select');
+            const inputEl = dialog.querySelector('#team-id-input');
+            const manualWrap = dialog.querySelector('#cgue-team-manual-wrap');
+            const syncTeamWorkspaceUi = () => {
+                const useManualEntry = selectEl instanceof HTMLSelectElement &&
+                    selectEl.value === TEAM_WORKSPACE_MANUAL_OPTION;
+                if (manualWrap) {
+                    manualWrap.hidden = !useManualEntry;
+                }
+                if (!useManualEntry && selectEl instanceof HTMLSelectElement) {
+                    const selectedWorkspaceId = normalizeWorkspaceApiId(selectEl.value) || normalizeStringValue(selectEl.value, false);
+                    if (selectedWorkspaceId && selectedWorkspaceId !== TEAM_WORKSPACE_LOADING_OPTION) {
+                        setScope('team', selectedWorkspaceId);
+                    }
+                }
+            };
+            if (selectEl instanceof HTMLSelectElement) {
+                selectEl.addEventListener('change', () => {
+                    syncTeamWorkspaceUi();
+                    if (selectEl.value === TEAM_WORKSPACE_MANUAL_OPTION && inputEl instanceof HTMLInputElement) {
+                        inputEl.focus();
+                    }
+                });
+            }
+            if (inputEl instanceof HTMLInputElement) {
+                inputEl.addEventListener('input', () => {
+                    const manualWorkspaceId = normalizeWorkspaceApiId(inputEl.value) || normalizeStringValue(inputEl.value, false);
+                    if (manualWorkspaceId) {
+                        setScope('team', manualWorkspaceId);
+                    }
+                });
+            }
+            syncTeamWorkspaceUi();
+        };
+
+        const renderModeTeamWorkspaceBody = ({ isLoading = false } = {}) => {
+            if (!teamWorkspaceBody) return;
+            const pickerState = getPendingTeamWorkspaceFormState(dialog);
+            renderTeamWorkspaceBody(teamWorkspaceBody, detectAllWorkspaceIds(), {
+                isLoading,
+                preferredWorkspaceId: pickerState.useManualEntry
+                    ? ''
+                    : (pickerState.selectedValue || state.workspaceId),
+                manualInputValue: pickerState.manualInputValue,
+                useManualEntry: pickerState.useManualEntry
+            });
+            bindTeamWorkspaceControls();
+            syncPendingTeamWorkspace(dialog);
+        };
+
+        const ensureTeamWorkspaceSelection = () => {
+            if (state.scope !== 'team') return true;
+            const workspaceId = getPendingTeamWorkspaceId(dialog);
+            if (!workspaceId) {
+                notify('warning', t('alertNoWorkspace'));
+                return false;
+            }
+            setScope('team', normalizeWorkspaceApiId(workspaceId) || workspaceId);
+            return true;
+        };
+
+        if (teamWorkspaceBody) {
+            renderModeTeamWorkspaceBody({
+                isLoading: detectAllWorkspaceIds().length === 0
+            });
+            (async () => {
+                const token = await ensureAccessToken({ notifyOnError: false });
+                if (state.stepToken !== stepToken || !teamWorkspaceBody.isConnected) return;
+                if (token) {
+                    await ensureDetectedTeamWorkspaceIds(token);
+                }
+                if (state.stepToken !== stepToken || !teamWorkspaceBody.isConnected) return;
+                renderModeTeamWorkspaceBody();
+            })().catch((error) => {
+                console.warn('[CGUE Plus] Team workspace detection failed:', error);
+                if (state.stepToken !== stepToken || !teamWorkspaceBody.isConnected) return;
+                renderModeTeamWorkspaceBody();
+            });
+        }
         if (activeToggle) {
             activeToggle.addEventListener('change', () => {
                 persistExportOptions({ includeRootActive: activeToggle.checked });
@@ -6845,6 +9190,7 @@
         }
         const runExportAll = async () => {
             if (state.isExporting) return;
+            if (!ensureTeamWorkspaceSelection()) return;
             const backupTargets = resolveBackupTargets();
             if (!backupTargets) return;
             const saveHandle = backupTargets.local ? await prepareSaveHandle(state.scope, state.workspaceId) : null;
@@ -6861,6 +9207,7 @@
         };
         bindCardAction(exportAllCard, runExportAll);
         dialog.querySelector('#cgue-export-select').onclick = () => {
+            if (!ensureTeamWorkspaceSelection()) return;
             renderSelectionStep(dialog);
         };
     }
@@ -6868,11 +9215,18 @@
     function renderSelectionStep(dialog) {
         state.stepToken += 1;
         const stepToken = state.stepToken;
+        setDialogStepVariant(dialog);
+        dialog.dataset.cgueStep = 'selection';
         const exportTargetLabel = getExportTargetLabel();
         const exportSelectedLabel = t('exportSelected', exportTargetLabel);
 
         dialog.innerHTML = `
-            <h2>${t('selectionTitle')}</h2>
+            <div class="cgue-dialog-header">
+                <div class="cgue-dialog-title">
+                    <span class="cgue-dialog-title-icon" aria-hidden="true">${SELECT_CONVERSATIONS_OPTION_ICON}</span>
+                    <h2>${t('selectionTitle')}</h2>
+                </div>
+            </div>
             <div class="cgue-select-toolbar">
                 <input id="cgue-search" class="cgue-input" type="text" placeholder="${t('searchPlaceholder')}" disabled>
                 <div class="cgue-select-actions">
@@ -6882,8 +9236,13 @@
                 </div>
             </div>
             <div id="cgue-selection-count" class="cgue-selection-count"></div>
-            <div id="cgue-list-status" class="cgue-status">${t('loadingConversations')}</div>
-            <div id="cgue-conv-list" class="cgue-conv-list"></div>
+            <div id="cgue-list-status" class="cgue-selection-loading" role="status" aria-live="polite">
+                ${renderSelectionLoadingCallout({
+                    message: t('loadingConversations'),
+                    progressState: getSelectionLoadingProgressState('idle')
+                })}
+            </div>
+            <div id="cgue-conv-list" class="cgue-conv-list" hidden></div>
             <div class="cgue-actions">
                 <button id="cgue-back" class="cgue-btn">${t('back')}</button>
                 <button id="cgue-export-selected" class="cgue-btn cgue-primary" disabled>${exportSelectedLabel}</button>
@@ -6898,6 +9257,38 @@
         const statusEl = dialog.querySelector('#cgue-list-status');
         const listEl = dialog.querySelector('#cgue-conv-list');
         const countEl = dialog.querySelector('#cgue-selection-count');
+        const selectionLoadingContext = {
+            includeSwitchStep: false,
+            includeRefreshStep: false,
+            rootTotal: 2
+        };
+
+        const buildSelectionLoadingProgressState = (status = {}) => (
+            getSelectionLoadingProgressState({
+                includeSwitchStep: selectionLoadingContext.includeSwitchStep,
+                includeRefreshStep: selectionLoadingContext.includeRefreshStep,
+                rootTotal: selectionLoadingContext.rootTotal,
+                ...status
+            })
+        );
+
+        const setSelectionLoadingState = ({
+            message,
+            phase = 'idle',
+            tone = 'info',
+            showProgress = true,
+            progressState = null
+        } = {}) => {
+            statusEl.hidden = false;
+            listEl.hidden = true;
+            statusEl.innerHTML = renderSelectionLoadingCallout({
+                message,
+                tone,
+                progressState: showProgress
+                    ? (progressState || buildSelectionLoadingProgressState({ phase }))
+                    : null
+            });
+        };
 
         const enableControls = () => {
             searchInput.disabled = false;
@@ -6986,20 +9377,82 @@
 
         (async () => {
             try {
-                if (!await ensureAccessToken()) {
-                    statusEl.textContent = t('alertNoAccessToken');
-                    statusEl.classList.add('cgue-error');
+                await ensureDialogWorkspaceOrigin();
+                if (state.stepToken !== stepToken) return;
+                await ensureWorkspaceSession(state.scope, state.workspaceId, {
+                    notifyOnError: false,
+                    onStatus: ({ stage, mode, targetWorkspaceId }) => {
+                        if (state.stepToken !== stepToken) return;
+                        if (stage === 'switching') {
+                            selectionLoadingContext.includeSwitchStep = true;
+                            selectionLoadingContext.includeRefreshStep = true;
+                            setSelectionLoadingState({
+                                message: t('statusSwitchingWorkspace', getWorkspaceSwitchLabel(mode, targetWorkspaceId)),
+                                phase: 'switching',
+                                progressState: buildSelectionLoadingProgressState({ phase: 'switching' })
+                            });
+                            return;
+                        }
+                        setSelectionLoadingState({
+                            message: t('statusRefreshingSession'),
+                            phase: 'refreshing',
+                            progressState: buildSelectionLoadingProgressState({ phase: 'refreshing' })
+                        });
+                    }
+                });
+                if (state.stepToken !== stepToken) return;
+                if (!await ensureAccessToken({ notifyOnError: false })) {
+                    setSelectionLoadingState({
+                        message: t('alertNoAccessToken'),
+                        tone: 'warning',
+                        showProgress: false
+                    });
                     return;
                 }
-                statusEl.textContent = t('loadingConversations');
+                setSelectionLoadingState({
+                    message: t('loadingConversations'),
+                    phase: 'loading',
+                    progressState: buildSelectionLoadingProgressState({ phase: 'loading' })
+                });
                 const index = state.index || await collectConversationIndex(state.workspaceId, (info) => {
                     if (state.stepToken !== stepToken) return;
                     if (info.stage === 'root') {
-                        statusEl.textContent = t('statusFetchingRoot', getRootLabelFromArchived(info.isArchived), info.page);
+                        setSelectionLoadingState({
+                            message: t('statusFetchingRoot', getRootLabelFromArchived(info.isArchived), info.page),
+                            phase: 'root',
+                            progressState: buildSelectionLoadingProgressState({
+                                phase: 'root',
+                                rootIndex: info.rootIndex,
+                                page: info.page
+                            })
+                        });
                     } else if (info.stage === 'projects') {
-                        statusEl.textContent = t('statusFetchingProjects');
-                    } else if (info.stage === 'project' || info.stage === 'project-header') {
-                        statusEl.textContent = t('statusFetchingProject', info.projectTitle || '');
+                        setSelectionLoadingState({
+                            message: t('statusFetchingProjects'),
+                            phase: 'projects',
+                            progressState: buildSelectionLoadingProgressState({ phase: 'projects' })
+                        });
+                    } else if (info.stage === 'project-header') {
+                        setSelectionLoadingState({
+                            message: t('statusFetchingProject', info.projectTitle || ''),
+                            phase: 'project-header',
+                            progressState: buildSelectionLoadingProgressState({
+                                phase: 'project-header',
+                                projectIndex: info.projectIndex,
+                                projectTotal: info.projectTotal
+                            })
+                        });
+                    } else if (info.stage === 'project') {
+                        setSelectionLoadingState({
+                            message: t('statusFetchingProjectPage', info.projectTitle || '', info.page),
+                            phase: 'project',
+                            progressState: buildSelectionLoadingProgressState({
+                                phase: 'project',
+                                projectIndex: info.projectIndex,
+                                projectTotal: info.projectTotal,
+                                page: info.page
+                            })
+                        });
                     }
                 });
 
@@ -7011,7 +9464,10 @@
 
                 listEl.innerHTML = '';
                 if (index.items.length === 0) {
-                    statusEl.textContent = t('noConversations');
+                    setSelectionLoadingState({
+                        message: t('noConversations'),
+                        showProgress: false
+                    });
                     updateSelectionCount(0);
                     return;
                 }
@@ -7071,28 +9527,40 @@
                 });
 
                 listEl.appendChild(fragment);
-                statusEl.textContent = '';
+                statusEl.hidden = true;
+                listEl.hidden = false;
                 enableControls();
                 updateSelectionCount(index.items.length);
                 applyFilter();
             } catch (err) {
                 console.error('Conversation index failed:', err);
-                statusEl.textContent = t('alertListFailed', err?.message || String(err));
-                statusEl.classList.add('cgue-error');
+                setSelectionLoadingState({
+                    message: t('alertListFailed', err?.message || String(err)),
+                    tone: 'warning',
+                    showProgress: false
+                });
             }
         })();
     }
 
     function showExportDialog() {
         if (document.getElementById(OVERLAY_ID)) return;
+        clearDialogWorkspaceOrigin();
         const overlay = document.createElement('div');
         overlay.id = OVERLAY_ID;
         overlay.className = 'cgue-theme';
         const dialog = document.createElement('div');
         dialog.id = DIALOG_ID;
+        dialog.addEventListener('click', () => {
+            if (dialogWorkspaceRestoreState?.phase !== 'restored') return;
+            resetDialogWorkspaceRestoreToDefault({
+                refresh: dialog.dataset.cgueStep === 'scope'
+            });
+        });
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
         renderScopeStep(dialog);
+        void ensureDialogWorkspaceOrigin();
     }
 
     function addExportButton() {
