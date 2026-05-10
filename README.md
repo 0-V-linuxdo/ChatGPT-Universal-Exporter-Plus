@@ -4,7 +4,7 @@
       <img src="icon/icon.svg" width="86" alt="ChatGPT Universal Exporter Plus icon">
     </td>
     <td>
-      <h1>ChatGPT Universal Exporter Plus</h1>
+      <strong><big><big>ChatGPT Universal Exporter Plus</big></big></strong>
     </td>
     <td width="220" align="center">
       <a href="https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus/raw/refs/heads/dev/ChatGPT%20Universal%20Exporter%20Plus.user.js">
