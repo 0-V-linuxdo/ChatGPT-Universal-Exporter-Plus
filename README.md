@@ -1,7 +1,7 @@
 <table>
   <tr>
     <td width="112" align="center">
-      <img src="icon/01.svg" width="86" alt="ChatGPT Universal Exporter Plus icon">
+      <img src="icon/icon.svg" width="86" alt="ChatGPT Universal Exporter Plus icon">
     </td>
     <td>
       <h1>ChatGPT Universal Exporter Plus</h1>
