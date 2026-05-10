@@ -16,7 +16,7 @@
 // @connect      www.googleapis.com
 // @run-at       document-idle
 // @license      MIT
-// @icon         https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus/raw/refs/heads/main/icon/icon.svg
+// @icon         https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus/raw/refs/heads/release/userscript/icon.svg
 // ==/UserScript==
 
 // ================================================
