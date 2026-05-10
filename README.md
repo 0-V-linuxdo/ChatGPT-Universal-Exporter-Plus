@@ -89,7 +89,3 @@ npm run check
 ## 致谢
 
 基于 `ChatGPT Universal Exporter`（Me Alexrcer）二次开发。
-
-## License
-
-MIT
