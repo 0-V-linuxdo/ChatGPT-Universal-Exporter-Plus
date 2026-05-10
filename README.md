@@ -1,8 +1,13 @@
-<p align="center">
-  <img src="userscript/icon.svg" width="96" alt="ChatGPT Universal Exporter Plus icon">
-</p>
-
-# ChatGPT Universal Exporter Plus
+<table>
+  <tr>
+    <td width="112" align="center">
+      <img src="userscript/icon.svg" width="86" alt="ChatGPT Universal Exporter Plus icon">
+    </td>
+    <td>
+      <h1>ChatGPT Universal Exporter Plus</h1>
+    </td>
+  </tr>
+</table>
 
 ChatGPT Universal Exporter Plus 是一个给 ChatGPT 网页版使用的用户脚本，用来把聊天记录备份到本地 ZIP，或同步到 Google Drive。它支持个人空间、团队 Workspace、归档聊天和 Projects，适合定期备份、迁移前留档，或把重要对话保存成可检索的 JSON 文件。
 
