@@ -1,5 +1,7 @@
 # ChatGPT Universal Exporter Plus
 
+<img src="https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus/raw/refs/heads/release/userscript/icon.svg" alt="ChatGPT Universal Exporter Plus 图标" width="500">
+
 一个用于 ChatGPT Web 的用户脚本，支持将对话导出为本地 ZIP，或同步到 Google Drive（逐条 JSON）。覆盖个人空间与团队空间，并支持按需筛选与选择导出。
 
 ## 功能概览
