@@ -4,7 +4,11 @@
   </a>
   <img src="userscript/icon.svg" width="86" alt="ChatGPT Universal Exporter Plus icon" align="middle">
   &nbsp;&nbsp;
-  <strong><big><big><big><big><big><big>ChatGPT Universal Exporter Plus</big></big></big></big></big></big></strong>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="userscript/title-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="userscript/title-light.svg">
+    <img src="userscript/title-light.svg" width="800" alt="ChatGPT Universal Exporter Plus" align="middle">
+  </picture>
 </p>
 
 ChatGPT 网页导出脚本：本地 ZIP 或 Google Drive。支持个人/团队空间、归档聊天、Projects、自选对话和自动增量同步。
