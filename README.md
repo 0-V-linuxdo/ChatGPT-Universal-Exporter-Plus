@@ -1,11 +1,10 @@
 <p>
+  <a href="https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus/raw/refs/heads/release/userscript/ChatGPT%20Universal%20Exporter%20Plus.user.js">
+    <img src="https://img.shields.io/badge/%E5%AE%89%E8%A3%85-Userscript-2ea44f?style=for-the-badge" alt="安装" align="right">
+  </a>
   <img src="userscript/icon.svg" width="86" alt="ChatGPT Universal Exporter Plus icon" align="middle">
   &nbsp;&nbsp;
-  <strong><big><big><big><big>ChatGPT Universal Exporter Plus</big></big></big></big></strong>
-  &nbsp;&nbsp;
-  <a href="https://github.com/0-V-linuxdo/ChatGPT-Universal-Exporter-Plus/raw/refs/heads/release/userscript/ChatGPT%20Universal%20Exporter%20Plus.user.js">
-    <img src="https://img.shields.io/badge/%E5%AE%89%E8%A3%85-Userscript-2ea44f?style=for-the-badge" alt="安装" align="middle">
-  </a>
+  <strong><big><big><big><big><big><big>ChatGPT Universal Exporter Plus</big></big></big></big></big></big></strong>
 </p>
 
 ChatGPT 网页导出脚本：本地 ZIP 或 Google Drive。支持个人/团队空间、归档聊天、Projects、自选对话和自动增量同步。
